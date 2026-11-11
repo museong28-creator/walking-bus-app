@@ -1,0 +1,12 @@
+{
+  "name": "내 걸음 · 나의 속도로 도착하기",
+  "short_name": "내 걸음",
+  "description": "내 걸음 속도로 계산하는 도보 도착 시간",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8f9fc",
+  "theme_color": "#2455dc",
+  "icons": [{"src":"assets/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]
+}
