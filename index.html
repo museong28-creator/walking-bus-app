@@ -13,10 +13,10 @@
   <link rel="stylesheet" href="styles.css">
   <title>내 걸음 · 나의 속도로 도착하기</title>
 </head>
-<body>
+<body class="onboarding">
   <header class="header">
     <a class="brand" href="./" aria-label="내 걸음 처음 화면"><span class="brand-icon" aria-hidden="true">↗</span><span>내 걸음<small>MY PACE</small></span></a>
-    <div class="header-actions"><span class="prototype">개인용 웹 프로토타입</span><button class="text-button" id="demo-button">먼저 체험하기 <span aria-hidden="true">↗</span></button></div>
+    <div class="header-actions"><span class="prototype">개인용 웹 프로토타입</span><button class="text-button" id="recalibrate-button">내 속도 측정</button><button class="text-button" id="demo-button">먼저 체험하기 <span aria-hidden="true">↗</span></button></div>
   </header>
 
   <main class="workspace">
@@ -42,6 +42,26 @@
     </section>
 
     <aside class="journey-panel" aria-label="걷기 정보">
+      <section id="onboarding-card" class="onboarding-card" aria-labelledby="onboarding-title">
+        <div class="ob-top"><span class="ob-brand">MY PACE <small>BETA</small></span><button id="onboarding-theme" class="ob-icon" aria-label="밝은 화면으로 전환">◐</button></div>
+        <div class="ob-steps" aria-label="위치, 속도, 목적지 순서"><span>01 위치</span><span>02 내 속도</span><span>03 목적지</span></div>
+        <p class="ob-eyebrow">EVERY WALK, YOUR PACE</p>
+        <h1 id="onboarding-title">내 걸음으로,<br>더 정확한 도착.</h1>
+        <p id="onboarding-copy" class="ob-copy">먼저 내 위치를 찾고, 평소처럼 걸어보세요.<br>나만의 속도로 목적지까지의 시간을 알아봐요.</p>
+        <div id="onboarding-map-view" class="ob-mini-map hidden" aria-label="측정한 내 위치 지도"></div>
+        <div class="ob-meter">
+          <span id="onboarding-status" class="ob-status" role="status">● 측정 준비</span>
+          <div class="ob-ring"><span id="onboarding-speed-label">나의 보행 속도</span><div><strong id="onboarding-speed">—</strong><small>km/h</small></div><span id="onboarding-pace">아직 측정하지 않았어요</span></div>
+          <div class="ob-metrics"><div><span>측정 시간</span><strong id="onboarding-time">00:00</strong></div><div><span>위치 정확도</span><strong id="onboarding-accuracy">—</strong></div></div>
+        </div>
+        <div id="onboarding-feedback" class="ob-feedback" role="status" aria-live="polite">위치 권한은 아래 버튼을 누른 뒤 요청해요. 측정 기록은 기기에만 머물며, 새로고침하면 초기화돼요.</div>
+        <p class="ob-phone">▣ iPhone에서는 화면을 켜 두세요. 화면을 잠그거나 다른 앱으로 이동하면 측정이 중지돼요.</p>
+        <button id="onboarding-start" class="ob-primary">◎ 내 위치 측정하기</button>
+        <button id="onboarding-finish" class="ob-primary hidden" disabled>측정 완료하고 이 속도 사용하기</button>
+        <div class="ob-bottom"><button id="onboarding-stop" class="ob-text hidden">측정 중지</button><button id="onboarding-skip" class="ob-text">나중에 측정하고 지도 보기 →</button></div>
+        <button id="onboarding-map" class="ob-text ob-map-toggle">지도 배경 켜기 · 지도 서버 연결 동의 후</button>
+        <details class="ob-help"><summary>측정은 어떻게 하나요?</summary><p>탁 트인 곳에서 평소 속도로 걸어주세요. 정확한 GPS와 최소 30초 동안의 여러 보행 표본이 모이면 적용할 수 있어요. 1~2분 정도 걸으면 비교하기 좋아요. 멈춤, 낮은 정확도, 오래된 신호는 속도 결과에 사용하지 않아요. GPS 추정치이므로 실제 속도와 차이가 날 수 있어요.</p></details>
+      </section>
       <div class="panel-intro"><div><p class="eyebrow">나의 속도로 도착하기</p><h2>오늘은 어디까지?</h2></div><span class="walking-symbol" aria-hidden="true">↗</span></div>
       <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
       <section class="destination-card" aria-label="선택한 목적지">
