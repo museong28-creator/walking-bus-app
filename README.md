@@ -120,3 +120,13 @@ docs/               개인정보, 테스트, 실시간 버스 확장 설계
 ```
 
 Leaflet 저작권 및 BSD-2-Clause 라이선스는 `assets/vendor/leaflet.LICENSE`에 있습니다. 지도 데이터는 OpenStreetMap 기여자에게 저작권이 있으며 해당 데이터 라이선스·서비스 정책이 적용됩니다.
+
+## Kakao 지도 연결 준비
+
+`src/map-config.js`의 `KAKAO_JAVASCRIPT_KEY`에 **브라우저용 JavaScript 키만** 설정합니다. 값이 비어 있으면 기존 Leaflet/OpenStreetMap을 사용합니다. REST API 키, Admin 키, client secret은 공개 소스나 정적 사이트에 절대 넣지 않습니다.
+
+Kakao Developers에서 해당 앱의 카카오맵 사용 설정을 ON으로 하고 JavaScript 키의 SDK 도메인에 `https://museong28-creator.github.io`를 등록해야 합니다. 로컬 테스트 주소는 필요한 경우 별도로 등록합니다. 유료 API 설정은 자동으로 켜지 않습니다.
+
+SDK는 사용자가 지도 연결 동의를 누른 뒤에만 불러옵니다. 메인 지도와 속도 측정 지도, 목적지/친구 마커 및 경로 선을 같은 지도 엔진으로 표시합니다. 키/도메인 오류 시 OSM으로 몰래 바꾸지 않고 오류를 표시합니다. 지도 엔진 변경만 준비한 것으로, 장소 검색·도보 경로·정류장 조회 공급자는 기존 Nominatim/FOSSGIS/Overpass이며 각 요청의 동의 안내를 유지합니다. 실시간 버스 API는 추가하지 않았습니다.
+
+실제 키를 넣은 배포에서는 Kakao 지도 로딩, 양쪽 지도, 목적지 터치, 경로 선, 지도 껐다 다시 켜기, iPhone Safari를 추가 검증해야 합니다. 모킹 테스트 통과는 실제 API 인증 성공을 의미하지 않습니다.

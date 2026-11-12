@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {setImmediate as flushAsync} from 'node:timers/promises';
 import vm from 'node:vm';
 import * as core from '../src/core.js';
+import {createMapAPI} from '../src/map-adapter.js';
 import {SERVICES} from '../src/services.js';
 
 // Run the actual application source with its external browser surfaces replaced.
@@ -74,7 +75,7 @@ function harness(options = {}) {
     polyline: layer, marker: layer, divIcon: value => value, latLngBounds: value => value};
   class ClockDate extends Date { static now() { return now; } }
   const context = vm.createContext({
-    ...core, SERVICES, document, window, navigator, L, Date: ClockDate, Intl, AbortController, console,
+    ...core, SERVICES, createMapAPI, KAKAO_JAVASCRIPT_KEY:'', document, window, navigator, L, Date: ClockDate, Intl, AbortController, console,
     setInterval: callback => { intervals.push(callback); return intervals.length; },
     getWalkingRoute: async () => {throw new Error('Unexpected network request');},
     searchPlaces: async () => {throw new Error('Unexpected network request');},

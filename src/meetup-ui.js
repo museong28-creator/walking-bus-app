@@ -2,7 +2,7 @@ import {assessDeadline,positionFreshness,localDateTimeValue} from './meeting.js'
 import {MeetingClient,parseInvite,makeInviteUrl} from './sharing.js';
 import {isCoordinate,distance} from './core.js';
 
-export function initMeetupUI({map,askConsent,notice,formatTime,getContext,requestGps,selectDestination,showSharedMap}) {
+export function initMeetupUI({map,L = globalThis.L,askConsent,notice,formatTime,getContext,requestGps,selectDestination,showSharedMap}) {
   const $ = id => document.getElementById(id);
   const local = ['localhost','127.0.0.1','[::1]'].includes(location.hostname);
   const friendLayer = L.layerGroup().addTo(map);

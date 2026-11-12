@@ -10,7 +10,7 @@
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="assets/vendor/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=stitch-5">
+  <link rel="stylesheet" href="styles.css?v=stitch-6">
   <title>내 걸음 · 나의 속도로 도착하기</title>
 </head>
 <body class="pace-app onboarding">
@@ -33,7 +33,7 @@
         <p>지도를 켜고 목적지를 골라보세요.<br>내 속도에 맞춘 도착 시간을 알아봐요.</p>
         <button id="enable-map" class="primary">온라인 지도 켜기</button>
         <button id="offline-demo" class="text-button">데이터 없이 체험하기</button>
-        <small>지도를 켜면 화면에 보이는 지역과 IP가<br>OpenStreetMap 지도 서버에 전달돼요.</small>
+        <small id="map-provider-consent">지도를 켜면 화면에 보이는 지역과 IP가<br>OpenStreetMap 지도 서버에 전달돼요.</small>
       </div>
       <div class="map-caption" id="map-caption">초기 지도: 서울 시청 · 현재 위치가 아니에요</div>
       <div class="map-tools" role="group" aria-label="지도에서 지정할 지점"><button id="set-start" aria-pressed="false" title="지도를 눌러 출발지 지정">출발지 지정</button><button id="set-destination" aria-pressed="true" title="지도를 눌러 목적지 지정">목적지 지정</button><button id="fit-map" title="출발지와 목적지 함께 보기" aria-label="전체 경로 보기">⛶</button></div>
@@ -151,6 +151,6 @@
 
   <dialog id="consent-dialog" aria-labelledby="consent-title"><div class="dialog-content"><span class="consent-icon" aria-hidden="true">↗</span><h2 id="consent-title">외부 서비스 연결</h2><p id="consent-copy"></p><p class="microcopy" id="consent-footnote">이 요청을 진행할 때만 연결해요. GPS 이동 기록은 저장하지 않아요.</p><div class="dialog-actions"><button id="consent-cancel" class="secondary">취소</button><button id="consent-allow" class="primary">동의하고 연결</button></div></div></dialog>
   <script src="assets/vendor/leaflet.js"></script>
-  <script type="module" src="src/app.js?v=stitch-5"></script>
+  <script type="module" src="src/app.js?v=stitch-6"></script>
 </body>
 </html>
