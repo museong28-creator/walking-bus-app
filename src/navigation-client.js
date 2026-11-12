@@ -4,6 +4,7 @@ import {isCoordinate} from './core.js';
 import {NAVIGATION_API_ORIGIN} from './firebase-config.js';
 const id = v => typeof v === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(v);
 const city = v => typeof v === 'string' && /^\d{1,9}$/.test(v);
+const failure=(code,message)=>Object.assign(new Error(message),{code});
 const invalid = () => { throw new Error('정보를 확인하지 못했어요. 다시 조회해 주세요.'); };
 export function arrivalIsFresh(data, now = Date.now()) {
   const fetched = Date.parse(data?.fetchedAt), expires = Date.parse(data?.expiresAt);
@@ -12,36 +13,42 @@ export function arrivalIsFresh(data, now = Date.now()) {
 export function createNavigationClient({origin, fetchImpl = fetch, now = Date.now, timeoutMs = 12000, getIdToken} = {}) {
   const base = new URL(origin);
   if (base.origin !== origin || base.username || base.password || base.protocol !== 'https:') throw new Error('HTTPS 서버 주소가 필요해요.');
-  async function request(path, input, signal) {
+  async function request(path, input, signal, deadlineMs=timeoutMs) {
     const controller = new AbortController(), abort = () => controller.abort();
     if (signal?.aborted) abort();
     signal?.addEventListener('abort', abort, {once:true});
-    const timer = setTimeout(abort, timeoutMs);
+    const timer = setTimeout(abort, deadlineMs);
+    let rejectAbort;
+    const interrupted=new Promise((_,reject)=>{rejectAbort=()=>reject(new DOMException('Aborted','AbortError'));controller.signal.addEventListener('abort',rejectAbort,{once:true});});
+    // Observe immediately, including when the caller already aborted.
+    interrupted.catch(()=>{});
+    const bounded=promise=>Promise.race([promise,interrupted]);
     try {
       if (controller.signal.aborted) throw new DOMException('Aborted','AbortError');
       const headers={'Content-Type':'application/json'};
       if(getIdToken){
         if(origin!==NAVIGATION_API_ORIGIN)throw new Error('인증 정보를 보낼 수 없는 서버예요.');
-        let token;try{token=await getIdToken();}catch{throw new Error('Google 로그인이 필요해요.');}
-        if(typeof token!=='string'||token.length>8192||!/^[A-Za-z0-9_.-]+$/.test(token))throw new Error('Google 로그인이 필요해요.');
+        let token;try{token=await bounded(getIdToken());}catch(error){if(error?.name==='AbortError')throw error;throw failure('AUTH_REQUIRED','Google 로그인이 필요해요.');}
+        if(typeof token!=='string'||token.length>8192||!/^[A-Za-z0-9_.-]+$/.test(token))throw failure('AUTH_REQUIRED','Google 로그인이 필요해요.');
         headers.Authorization=`Bearer ${token}`;
       }
       if(controller.signal.aborted)throw new DOMException('Aborted','AbortError');
-      const response = await fetchImpl(`${origin}/v1/${path}`, {method:'POST',headers,body:JSON.stringify(input),signal:controller.signal,credentials:'same-origin',redirect:'error',cache:'no-store',referrerPolicy:'no-referrer'});
+      const response = await bounded(fetchImpl(`${origin}/v1/${path}`, {method:'POST',headers,body:JSON.stringify(input),signal:controller.signal,credentials:'same-origin',redirect:'error',cache:'no-store',referrerPolicy:'no-referrer'}));
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) throw new Error('서버 접근 권한을 확인해 주세요.');
-        if (response.status === 429) throw new Error('조회 한도에 도달했어요. 잠시 후 다시 시도해 주세요.');
-        if (response.status === 503) throw new Error('실시간 정보 연결을 준비 중이에요.');
+        if (response.status === 401) throw failure('AUTH_REQUIRED','Google 로그인이 필요해요.');
+        if (response.status === 403) throw failure('ACCESS_DENIED','서버 접근 권한을 확인해 주세요.');
+        if (response.status === 429) throw failure('RATE_LIMITED','조회 한도에 도달했어요. 잠시 후 다시 시도해 주세요.');
+        if (response.status === 503) throw failure('UNAVAILABLE','실시간 정보 연결을 준비 중이에요.');
         throw new Error('정보 제공기관에 연결하지 못했어요. 다시 시도해 주세요.');
       }
-      const data = await response.json();
+      const data = await bounded(response.json());
       if (controller.signal.aborted) throw new DOMException('Aborted','AbortError');
       return data;
-    } finally {clearTimeout(timer);signal?.removeEventListener('abort',abort);}
+    } finally {clearTimeout(timer);controller.signal.removeEventListener('abort',rejectAbort);signal?.removeEventListener('abort',abort);}
   }
   return {
     async sessionCheck(signal){
-      const data=await request('session',{},signal);
+      const data=await request('session',{},signal,Math.max(timeoutMs,65000));
       if(data?.authenticated!==true||data?.quotaReservation!==true||data?.liveNavigation!==false)invalid();
       return data;
     },

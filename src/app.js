@@ -1,4 +1,4 @@
-import {initAccountUI} from './account-ui.js';
+import {initAccountUI} from './account-ui.js?v=auth-11';
 import {DEFAULT_SPEED, SpeedTracker, distance, pathDistance, projectOnRoute, etaSeconds, catchStatus, parseCoordinates} from './core.js';
 import {SERVICES, getWalkingRoute, searchPlaces, getNearbyStops} from './services.js';
 import {initMeetupUI} from './meetup-ui.js';

@@ -16,3 +16,13 @@ test('server errors do not expose upstream response bodies',async()=>{for(const 
 test('already cancelled requests never send coordinates',async()=>{let calls=0;const abort=new AbortController();abort.abort();await assert.rejects(setup(null,{fetchImpl:async()=>{calls++;}}).stops([37,127],abort.signal),{name:'AbortError'});assert.equal(calls,0);});
 test('destination changed while response parsed discards stale result',async()=>{const abort=new AbortController();const client=setup(null,{fetchImpl:async()=>({ok:true,json:async()=>{abort.abort();return {cities:[]};}})});await assert.rejects(client.cities(abort.signal),{name:'AbortError'});});
 test('walking validates geometry and avoids unannounced fallback provider',async()=>{const route={points:[[37,127],[37.01,127.01]],distance:1400,snapDistance:0,source:'Kakao 도보 경로'};assert.equal((await setup(route).walking(...route.points)).distance,1400);await assert.rejects(setup({...route,source:'other'}).walking(...route.points));});
+
+test('timeout bounds token retrieval even if SDK never resolves',async()=>{
+ const {NAVIGATION_API_ORIGIN}=await import('../src/firebase-config.js');let requests=0;
+ const client=createNavigationClient({origin:NAVIGATION_API_ORIGIN,timeoutMs:10,getIdToken:()=>new Promise(()=>{}),fetchImpl:async()=>{requests++;}});
+ await assert.rejects(client.cities(),{name:'AbortError'});assert.equal(requests,0);
+});
+test('timeout bounds unresponsive transport and response parsing',async()=>{
+ await assert.rejects(setup(null,{timeoutMs:10,fetchImpl:()=>new Promise(()=>{})}).cities(),{name:'AbortError'});
+ await assert.rejects(setup(null,{timeoutMs:10,fetchImpl:async()=>({ok:true,json:()=>new Promise(()=>{})})}).cities(),{name:'AbortError'});
+});

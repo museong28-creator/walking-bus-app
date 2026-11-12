@@ -1,7 +1,7 @@
 import {createAccountSession} from './firebase-session.js';
-import {createAuthenticatedNavigationClient} from './navigation-client.js';
+import {createAuthenticatedNavigationClient} from './navigation-client.js?v=auth-11';
 export function initAccountUI({document:doc=document,session=createAccountSession(),clipboard=globalThis.navigator?.clipboard,navigation}={}){
-  const $=id=>doc.getElementById(id),dialog=$('account-dialog');let busy=false;
+  const $=id=>doc.getElementById(id),dialog=$('account-dialog');let busy=false,checking=false;
   navigation??=createAuthenticatedNavigationClient(session);
   const status=message=>{$('account-status').textContent=message;};
   const render=()=>{
@@ -9,6 +9,7 @@ export function initAccountUI({document:doc=document,session=createAccountSessio
     $('account-button').textContent=user?'내 계정':'계정';
     $('account-prepare').hidden=session.ready||!!user;
     $('account-login').hidden=!session.ready||!!user;
+    $('account-check').textContent=checking?'서버 연결 확인 중…':'서버 보호 연결 확인';
     $('account-check').hidden=!user;$('account-logout').hidden=!user;$('account-identity').hidden=!user;
     $('account-name').textContent=user?(user.displayName||'Google 계정'):'';
     $('account-uid').value=user?.uid||'';
@@ -31,9 +32,13 @@ export function initAccountUI({document:doc=document,session=createAccountSessio
   $('account-login').addEventListener('click',()=>perform(()=>{status('Google 창에서 계정을 선택해 주세요.');return session.login();}));
   $('account-logout').addEventListener('click',()=>perform(async()=>{await session.logout();status('로그아웃했어요.');}));
   $('account-check').addEventListener('click',()=>perform(async()=>{
+    checking=true;render();
     status('서버 인증과 사용량 저장을 확인 중이에요. 무료 서버가 쉬고 있으면 잠시 걸릴 수 있어요…');
     try{await navigation.sessionCheck();status('서버 인증과 사용량 저장 확인 완료. 확인 요청 1회가 한도에 기록됐어요. 실시간 버스·카카오 도보 정보는 아직 준비 중이에요.');}
-    catch{status('서버 연결 확인이 아직 완료되지 않았어요. 무료 서버 시작에 1분 정도 걸릴 수 있어요. 잠시 후 다시 눌러 주세요. 계속 실패하면 직원1에게 알려 주세요.');}
+    catch(error){
+      const messages={AUTH_REQUIRED:'Google 로그인이 만료됐어요. 로그아웃 후 다시 로그인해 주세요.',ACCESS_DENIED:'이 계정의 서버 이용 권한을 확인해야 해요. 직원1에게 알려 주세요.',RATE_LIMITED:'조회 한도에 도달했어요. 잠시 후 다시 시도해 주세요.',UNAVAILABLE:'서버의 인증 또는 사용량 저장 설정을 확인해야 해요. 직원1에게 알려 주세요.'};
+      status(messages[error?.code]||(error?.name==='AbortError'?'연결 확인 시간이 초과됐어요. 무료 서버가 시작 중일 수 있어요. 잠시 후 다시 눌러 주세요.':'서버에 연결하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.'));
+    }finally{checking=false;}
   }));
   $('account-copy').addEventListener('click',async()=>{
     if(!session.user||busy)return;
