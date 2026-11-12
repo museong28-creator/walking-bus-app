@@ -1,8 +1,15 @@
 import {DEFAULT_SPEED, SpeedTracker, distance, pathDistance, projectOnRoute, etaSeconds, catchStatus, parseCoordinates} from './core.js';
 import {SERVICES, getWalkingRoute, searchPlaces, getNearbyStops} from './services.js';
 import {initMeetupUI} from './meetup-ui.js';
+import {createMapAPI} from './map-adapter.js';
+import {KAKAO_JAVASCRIPT_KEY} from './map-config.js';
+
+const mapAPI = createMapAPI({key:KAKAO_JAVASCRIPT_KEY,leaflet:L});
+const mapProvider = KAKAO_JAVASCRIPT_KEY.trim() ? 'Kakao' : 'OpenStreetMap';
 
 const $ = id => document.getElementById(id);
+$('map-provider-consent').textContent = `지도를 켜면 화면에 보이는 지역과 IP가 ${mapProvider} 지도 서버에 전달돼요.`;
+$('onboarding-map').textContent = `지도 배경 켜기 · ${mapProvider}에 표시 지역과 IP 전달 동의`; 
 const tracker = new SpeedTracker();
 const calibration = {active:false, done:false, started:0, first:0, values:[], accuracy:null, message:'', lastSample:0};
 function renderCalibration() {
@@ -73,13 +80,13 @@ let routeController, searchController, stopController, pendingConsent;
 let meetingUI = null;
 let lastTick = Date.now();
 
-const map = L.map('map', {zoomControl:false, attributionControl:true}).setView([37.5665,126.9780],15);
-L.control.zoom({position:'bottomright'}).addTo(map);
-const tiles = L.tileLayer(SERVICES.tiles, {maxZoom:19, attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'});
-const pathLayer = L.layerGroup().addTo(map), markerLayer = L.layerGroup().addTo(map), stopLayer = L.layerGroup().addTo(map);
-const calibrationMap = L.map('onboarding-map-view',{zoomControl:false,attributionControl:true}).setView([37.5665,126.9780],15);
-const calibrationLayer = L.layerGroup().addTo(calibrationMap);
-const calibrationTiles = L.tileLayer(SERVICES.tiles,{maxZoom:19,attribution:'© OpenStreetMap contributors'});
+const map = mapAPI.map('map', {zoomControl:false, attributionControl:true}).setView([37.5665,126.9780],15);
+mapAPI.control.zoom({position:'bottomright'}).addTo(map);
+const tiles = mapAPI.tileLayer(SERVICES.tiles, {maxZoom:19, attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'});
+const pathLayer = mapAPI.layerGroup().addTo(map), markerLayer = mapAPI.layerGroup().addTo(map), stopLayer = mapAPI.layerGroup().addTo(map);
+const calibrationMap = mapAPI.map('onboarding-map-view',{zoomControl:false,attributionControl:true}).setView([37.5665,126.9780],15);
+const calibrationLayer = mapAPI.layerGroup().addTo(calibrationMap);
+const calibrationTiles = mapAPI.tileLayer(SERVICES.tiles,{maxZoom:19,attribution:'© OpenStreetMap contributors'});
 function showCalibrationLocation(point, accuracy) {
   if (!calibration.active) return;
   $('onboarding-map-view').classList.remove('hidden');
@@ -93,21 +100,21 @@ function shortDistance(meters) { return meters >= 1000 ? `${(meters / 1000).toFi
 function formatTime(timestamp) { return new Intl.DateTimeFormat('ko-KR', {hour:'numeric',minute:'2-digit'}).format(timestamp); }
 function coordinateLabel(point) { return `${point[0].toFixed(5)}, ${point[1].toFixed(5)}`; }
 function marker(point, kind, label) {
-  const icon = L.divIcon({className:`point-marker ${kind}`,html:`<div>${kind === 'stop' ? '▣' : ''}</div>`,iconSize:[22,22],iconAnchor:[11,11]});
-  const item = L.marker(point,{icon,keyboard:true,alt:label});
+  const icon = mapAPI.divIcon({className:`point-marker ${kind}`,html:`<div>${kind === 'stop' ? '▣' : ''}</div>`,iconSize:[22,22],iconAnchor:[11,11]});
+  const item = mapAPI.marker(point,{icon,keyboard:true,alt:label});
   const content = document.createElement('span'); content.textContent = label;
   return item.bindPopup(content);
 }
 function draw() {
   pathLayer.clearLayers(); markerLayer.clearLayers();
-  if (state.route) L.polyline(state.route.points,{color:'#2455dc',weight:5,opacity:.9,lineCap:'round'}).addTo(pathLayer);
-  else if (state.position && state.destination) L.polyline([state.position,state.destination.point],{color:'#879ab6',weight:3,dashArray:'5 8',opacity:.6}).addTo(pathLayer);
+  if (state.route) mapAPI.polyline(state.route.points,{color:'#2455dc',weight:5,opacity:.9,lineCap:'round'}).addTo(pathLayer);
+  else if (state.position && state.destination) mapAPI.polyline([state.position,state.destination.point],{color:'#879ab6',weight:3,dashArray:'5 8',opacity:.6}).addTo(pathLayer);
   if (state.position) marker(state.position,'current',state.demo ? '가상 현재 위치' : state.tracking ? '현재 위치' : '설정한 출발지').addTo(markerLayer);
   if (state.destination) marker(state.destination.point,'destination',state.destination.name).addTo(markerLayer);
 }
 function fitMap() {
   const points = state.route?.points || [state.position,state.destination?.point].filter(Boolean);
-  if (points.length > 1) map.fitBounds(L.latLngBounds(points),{paddingTopLeft:[55,110],paddingBottomRight:[50,100],maxZoom:17});
+  if (points.length > 1) map.fitBounds(mapAPI.latLngBounds(points),{paddingTopLeft:[55,110],paddingBottomRight:[50,100],maxZoom:17});
   else if (points.length) map.setView(points[0],16);
 }
 function clearRequests() {
@@ -135,8 +142,8 @@ $('consent-dialog').addEventListener('cancel', event => { event.preventDefault()
 
 function enableMap() {
   if (state.mapEnabled) return;
-  state.mapEnabled = true; calibrationTiles.addTo(calibrationMap); tiles.addTo(map); $('map-gate').classList.add('hidden');
-  $('map-caption').textContent = state.position ? '지도: OpenStreetMap · 실제 현장 상황과 다를 수 있어요' : '초기 지도: 서울 시청 · 현재 위치가 아니에요';
+  tileWarning = false; state.mapEnabled = true; calibrationTiles.addTo(calibrationMap); tiles.addTo(map); $('map-gate').classList.add('hidden');
+  $('map-caption').textContent = state.position ? `지도: ${mapProvider} · 실제 현장 상황과 다를 수 있어요` : '초기 지도: 서울 시청 · 현재 위치가 아니에요';
 }
 $('enable-map').addEventListener('click', enableMap);
 $('onboarding-map').addEventListener('click', enableMap);
@@ -147,7 +154,16 @@ $('disable-map').addEventListener('click', () => {
   notice('온라인 지도를 껐어요. 이미 요청한 지도 타일은 브라우저에 남을 수 있어요.');
 });
 let tileWarning = false;
-tiles.on('tileerror', () => { if (!tileWarning) { tileWarning = true; notice('지도 타일을 불러오지 못했어요. 네트워크를 확인하거나 좌표 입력을 사용해 주세요.'); } });
+function mapLoadError(error) {
+  if (mapProvider === 'Kakao') {
+    tiles.remove(); calibrationTiles.remove(); state.mapEnabled = false;
+    if (!state.demo) $('map-gate').classList.remove('hidden');
+    $('map-caption').textContent = 'Kakao 지도 연결 실패 · 지도 켜기로 다시 시도할 수 있어요';
+  }
+  if (!tileWarning) { tileWarning = true; notice(error?.message || '지도 타일을 불러오지 못했어요. 네트워크를 확인하거나 좌표 입력을 사용해 주세요.'); }
+}
+tiles.on('tileerror', mapLoadError);
+calibrationTiles.on('tileerror', mapLoadError);
 
 function setPickingStart(picking) {
   state.pickingStart = picking;
@@ -289,7 +305,7 @@ function startTracking() {
       }
       if (!state.start) state.start = state.position;
       if (!centered) { map.setView(state.position,16); centered = true; }
-      $('map-caption').textContent = `${state.mapEnabled ? 'OpenStreetMap' : '지도 타일 꺼짐'} · GPS 오차 약 ${Math.round(coords.accuracy)}m`;
+      $('map-caption').textContent = `${state.mapEnabled ? mapProvider : '지도 타일 꺼짐'} · GPS 오차 약 ${Math.round(coords.accuracy)}m`;
       notice(tracker.status === 'too-fast' ? '보행 속도 범위를 벗어났어요. 걷기로 돌아오면 다시 측정해요.' : '');
       draw(); render();
     }, error => {
@@ -476,7 +492,7 @@ setInterval(() => {
 },1000);
 render();
 
-meetingUI = initMeetupUI({map,askConsent,notice,formatTime,
+meetingUI = initMeetupUI({map,L:mapAPI,askConsent,notice,formatTime,
   getContext:() => ({...state,estimate:estimate(Date.now()),fix:tracker.lastFix}),
   requestGps:startTracking,
   showSharedMap:() => { $('map-gate').classList.add('hidden'); if (!state.mapEnabled) $('map-caption').textContent = '온라인 지도 꺼짐 · 동의한 친구의 좌표만 표시해요'; },
