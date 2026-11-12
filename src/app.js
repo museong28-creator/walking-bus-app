@@ -14,6 +14,20 @@ $('map-provider-consent').textContent = `지도를 켜면 화면에 보이는 �
 $('onboarding-map').textContent = `지도 배경 켜기 · ${mapProvider}에 표시 지역과 IP 전달 동의`; 
 const tracker = new SpeedTracker();
 const calibration = {active:false, done:false, started:0, first:0, values:[], accuracy:null, message:'', lastSample:0};
+// Store only the chosen pace, never coordinates or the recorded GPS samples.
+const PACE_KEY = 'walking-pace-profile-v1';
+function readPace() {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(PACE_KEY));
+    return value?.version === 1 && Number.isFinite(value.speed) && value.speed >= 0.4 && value.speed <= 3.5 && Number.isFinite(value.measuredAt) && value.measuredAt > 0 ? value : null;
+  } catch { return null; }
+}
+function savePace() {
+  try {
+    window.localStorage.setItem(PACE_KEY, JSON.stringify({version:1,speed:state.baseSpeed,measuredAt:Date.now()}));
+    return true;
+  } catch { return false; }
+}
 function renderCalibration() {
   const active = calibration.active;
   const fresh = state.tracking && state.lastGoodFix && Date.now() - state.lastGoodFix <= 15000;
@@ -58,7 +72,10 @@ $('onboarding-finish').addEventListener('click', () => {
   calibration.message = `측정 완료! 이번 보행의 평균은 시속 ${(state.baseSpeed * 3.6).toFixed(1)}km예요. 목적지를 선택하고 도보 경로를 찾아보세요. 이후 ETA는 이 설정 속도로 계산해요.`;
   $('onboarding-title').textContent = '나만의 속도를 찾았어요.';
   $('onboarding-copy').textContent = '신호 대기, 경사와 GPS 오차에 따라 실제 도착 시간은 달라질 수 있어요.';
-  $('onboarding-skip').textContent = '이 속도로 목적지 선택하기 →'; $('onboarding-skip').classList.add('ob-primary'); render();
+  const saved = savePace();
+  leaveOnboarding();
+  notice(calibration.message + (saved ? ' 이 기기에 속도를 저장했어요. 다음 방문에도 사용할 수 있어요.' : ' 기기에 저장할 수 없어 이번 화면에서만 사용해요. 브라우저의 저장 설정을 확인해 주세요.'));
+  render();
 });
 $('onboarding-skip').addEventListener('click', () => {if (state.tracking) stopTracking();leaveOnboarding();render();});
 $('recalibrate-button').addEventListener('click', () => {
@@ -66,7 +83,9 @@ $('recalibrate-button').addEventListener('click', () => {
   $('onboarding-skip').classList.remove('ob-primary'); $('onboarding-skip').textContent = '나중에 측정하고 지도 보기 →';
   $('onboarding-map-view').classList.add('hidden'); calibration.accuracy = null;
   document.body?.classList.add('onboarding');$('onboarding-card').classList.remove('hidden');
-  calibration.done = false; calibration.active = false; calibration.message = '측정하기를 누르면 새로운 표본으로 시작해요.';
+  Object.assign(calibration,{done:false,active:false,started:0,stopped:0,first:0,values:[],lastSample:0,accuracy:null,message:'측정하기를 누르면 새로운 표본으로 시작해요. 기존 속도는 새 측정을 완료할 때까지 유지돼요.'});
+  tracker.reset();
+  $('onboarding-copy').textContent = '화면을 켜 둔 채 평소처럼 걸어주세요. 새 측정을 완료하면 저장된 속도를 바꿔요.';
   $('onboarding-title').textContent = '내 걸음 속도 측정하기';
   renderCalibration();map.invalidateSize?.();window.scrollTo?.({top:0,behavior:'smooth'});
 });
@@ -388,6 +407,7 @@ $('bus-form').addEventListener('submit', event => {
 });
 $('base-speed').addEventListener('input', () => {
   state.speedOrigin = 'manual';
+  try { window.localStorage.removeItem(PACE_KEY); } catch {}
   state.baseSpeed = Number($('base-speed').value) / 3.6;
   $('base-speed-value').textContent = `${Number($('base-speed').value).toFixed(1)} km/h`;
   render();
@@ -492,6 +512,14 @@ setInterval(() => {
   }
   render();
 },1000);
+const savedPace = readPace();
+if (savedPace) {
+  state.baseSpeed = savedPace.speed; state.speedOrigin = 'calibrated';
+  $('base-speed').value = (state.baseSpeed * 3.6).toFixed(1);
+  $('base-speed-value').textContent = `${(state.baseSpeed * 3.6).toFixed(1)} km/h`;
+  leaveOnboarding();
+  notice('저장한 내 보행 속도를 불러왔어요. 내 속도 측정에서 언제든 다시 측정할 수 있어요.');
+}
 render();
 
 meetingUI = initMeetupUI({map,L:mapAPI,askConsent,notice,formatTime,

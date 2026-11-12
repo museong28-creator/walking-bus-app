@@ -54,9 +54,17 @@ function harness(options = {}) {
     return elements.get(id);
   };
   const document = Object.assign(new FakeTarget(), {
-    visibilityState: 'visible', getElementById: element, createElement: tagName => new FakeElement(tagName),
+    visibilityState: 'visible', getElementById: element, createElement: tagName => new FakeElement(tagName), body: new FakeElement('body'),
   });
-  const window = Object.assign(new FakeTarget(), {isSecureContext: options.secure ?? true});
+  document.body.classList.add('onboarding');
+  const storage = options.storage || new Map();
+  const localStorage = {
+    getItem(key) { if (options.storageReadError) throw new Error('Storage blocked'); return storage.get(key) ?? null; },
+    setItem(key,value) { if (options.storageWriteError) throw new Error('Quota exceeded'); storage.set(key,String(value)); },
+    removeItem(key) { if (options.storageWriteError) throw new Error('Storage blocked'); storage.delete(key); },
+  };
+  const window = Object.assign(new FakeTarget(), {isSecureContext: options.secure ?? true, localStorage});
+  if(options.storageAccessError) Object.defineProperty(window,'localStorage',{get(){throw new Error('SecurityError');}});
   const watches = [], cleared = [], intervals = [], busTargets = [];
   const navigator = {
     geolocation: {
@@ -85,7 +93,7 @@ function harness(options = {}) {
   });
   vm.runInContext(appSource, context, {filename: 'src/app.js'});
   return {
-    app: context.appTest, element, document, window, navigator, watches, cleared, busTargets,
+    app: context.appTest, element, document, window, navigator, watches, cleared, busTargets, storage,
     mapClick(lat,lng) { mapEvents.get('click')({latlng:{lat,lng}}); },
     get now() { return now; }, advance: milliseconds => { now += milliseconds; },
     tick() { for (const callback of intervals) callback(); },
@@ -285,7 +293,9 @@ test('onboarding calibrates from real moving samples then applies and stops GPS'
   await h.element('onboarding-finish').emit('click');
   assert.equal(h.app.state.tracking,false);assert.equal(h.app.state.baseSpeed,1.2);
   assert.equal(h.element('onboarding-speed').textContent,'4.3');
-  assert.match(h.element('onboarding-feedback').textContent,/측정 완료/);
+  assert.match(h.element('notice').textContent,/측정 완료/);
+  assert.equal(h.document.body.classList.contains('onboarding'),false);
+  assert.equal(h.element('onboarding-card').classList.contains('hidden'),true);
 });
 test('onboarding denial and retry clear old samples; skip stops the watch', async () => {
   const h=harness();await h.element('onboarding-start').emit('click');h.watches[0].failure({code:1});
@@ -370,4 +380,71 @@ test('clearing destination and returning from calibration reset map selection mo
   await h.element('set-start').emit('click');
   await h.element('onboarding-skip').emit('click');
   assert.equal(h.app.state.pickingStart,false);
+});
+
+
+const PACE_KEY = 'walking-pace-profile-v1';
+async function finishCalibration(h, speed=1.2) {
+  await h.element('onboarding-start').emit('click');
+  for(let i=0;i<7;i++){h.position({speed,latitude:i*.000055});if(i<6)h.advance(5000);}
+  assert.equal(h.element('onboarding-finish').disabled,false);
+  await h.element('onboarding-finish').emit('click');
+}
+test('calibrated speed is persisted without coordinates and restored without GPS or map consent', async()=>{
+  const h=harness(); await finishCalibration(h);
+  const profile=JSON.parse(h.storage.get(PACE_KEY));
+  assert.deepEqual(Object.keys(profile).sort(),['measuredAt','speed','version']);
+  assert.equal(profile.version,1);assert.equal(profile.speed,1.2);assert.equal(profile.measuredAt,h.now);
+  const restored=harness({storage:h.storage});
+  assert.equal(restored.app.state.baseSpeed,1.2);
+  assert.equal(restored.app.state.speedOrigin,'calibrated');
+  assert.equal(restored.document.body.classList.contains('onboarding'),false);
+  assert.equal(restored.element('onboarding-card').classList.contains('hidden'),true);
+  assert.equal(restored.element('base-speed').value,'4.3');
+  assert.equal(restored.watches.length,0);assert.equal(restored.app.state.mapEnabled,false);
+  assert.equal(restored.app.state.position,null);assert.equal(restored.app.state.destination,null);
+});
+test('bad stored profiles never become measured speeds or bypass onboarding',()=>{
+  for(const profile of ['not JSON','null','{}',JSON.stringify({version:2,speed:1.2,measuredAt:1}),
+    ...[null,'1.2',0,-1,0.39,3.51,1e99].map(speed=>JSON.stringify({version:1,speed,measuredAt:1700000000000})),
+    JSON.stringify({version:1,speed:1.2,measuredAt:'yesterday'})]) {
+    const h=harness({storage:new Map([[PACE_KEY,profile]])});
+    assert.equal(h.app.state.speedOrigin,'default');assert.equal(h.watches.length,0);
+    assert.equal(h.document.body.classList.contains('onboarding'),true);
+  }
+});
+test('blocked storage reads and access do not prevent app startup or calibration',async()=>{
+  for(const options of [{storageReadError:true},{storageAccessError:true}]) {
+    const h=harness(options);assert.equal(h.app.state.speedOrigin,'default');
+    await finishCalibration(h);
+    assert.equal(h.app.state.baseSpeed,1.2);
+    assert.equal(h.document.body.classList.contains('onboarding'),false);
+  }
+});
+test('failed persistence keeps measured session speed and visibly explains the limit',async()=>{
+  const h=harness({storageWriteError:true}); await finishCalibration(h);
+  assert.equal(h.app.state.baseSpeed,1.2);assert.equal(h.app.state.speedOrigin,'calibrated');
+  assert.equal(h.document.body.classList.contains('onboarding'),false);
+  assert.match(h.element('notice').textContent,/저장/);
+  assert.equal(h.storage.has(PACE_KEY),false);
+});
+test('remeasuring resets displayed session and old samples but keeps last accepted speed until replacement',async()=>{
+  const h=harness();await finishCalibration(h);
+  const accepted=h.storage.get(PACE_KEY);
+  await h.element('recalibrate-button').emit('click');
+  assert.equal(h.document.body.classList.contains('onboarding'),true);
+  assert.equal(h.element('onboarding-card').classList.contains('hidden'),false);
+  assert.equal(h.element('onboarding-time').textContent,'00:00');
+  assert.equal(h.element('onboarding-speed').textContent,'—');
+  assert.equal(h.element('onboarding-finish').disabled,true);
+  assert.equal(h.element('onboarding-start').classList.contains('hidden'),false);
+  assert.equal(h.storage.get(PACE_KEY),accepted);
+  await h.element('onboarding-start').emit('click');h.position({speed:1.6});
+  assert.equal(h.element('onboarding-finish').disabled,true);
+  await h.element('onboarding-skip').emit('click');
+  assert.equal(h.app.state.baseSpeed,1.2);assert.equal(h.storage.get(PACE_KEY),accepted);
+  await h.element('recalibrate-button').emit('click');await finishCalibration(h,1.6);
+  assert.ok(Math.abs(h.app.state.baseSpeed-1.6)<1e-9);assert.ok(Math.abs(JSON.parse(h.storage.get(PACE_KEY)).speed-1.6)<1e-9);
+  const stable=h.storage.get(PACE_KEY);await h.element('onboarding-finish').emit('click');
+  assert.equal(h.storage.get(PACE_KEY),stable);
 });
