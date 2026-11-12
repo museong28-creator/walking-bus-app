@@ -10,7 +10,7 @@
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="assets/vendor/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=stitch-4">
+  <link rel="stylesheet" href="styles.css?v=stitch-5">
   <title>내 걸음 · 나의 속도로 도착하기</title>
 </head>
 <body class="pace-app onboarding">
@@ -23,8 +23,8 @@
     <section class="map-section" aria-label="목적지 지도">
       <div id="map" aria-label="지도. 클릭하면 목적지로 설정됩니다."></div>
       <form id="search-form" class="search-bar" role="search">
-        <span aria-hidden="true">⌕</span><label class="sr-only" for="search-input">장소 또는 위도, 경도</label>
-        <input id="search-input" name="place" type="search" placeholder="장소 또는 위도, 경도 검색" maxlength="180" autocomplete="off">
+        <span aria-hidden="true">⌕</span><label class="sr-only" for="search-input">목적지 이름 또는 위도, 경도</label>
+        <input id="search-input" name="place" type="search" placeholder="목적지 이름 또는 위도, 경도" maxlength="180" autocomplete="off">
         <button type="submit" id="search-button">검색</button>
       </form>
       <ul class="search-results hidden" id="search-results" aria-label="장소 검색 결과"></ul>
@@ -36,7 +36,7 @@
         <small>지도를 켜면 화면에 보이는 지역과 IP가<br>OpenStreetMap 지도 서버에 전달돼요.</small>
       </div>
       <div class="map-caption" id="map-caption">초기 지도: 서울 시청 · 현재 위치가 아니에요</div>
-      <div class="map-tools"><button id="set-start" title="지도를 눌러 출발지 지정">출발지 지정</button><button id="fit-map" title="출발지와 목적지 함께 보기" aria-label="전체 경로 보기">⛶</button></div>
+      <div class="map-tools" role="group" aria-label="지도에서 지정할 지점"><button id="set-start" aria-pressed="false" title="지도를 눌러 출발지 지정">출발지 지정</button><button id="set-destination" aria-pressed="true" title="지도를 눌러 목적지 지정">목적지 지정</button><button id="fit-map" title="출발지와 목적지 함께 보기" aria-label="전체 경로 보기">⛶</button></div>
       <div id="demo-banner" class="demo-banner hidden">체험 모드 · 가상 위치와 가상 경로 <button id="exit-demo">종료</button></div>
       <div class="map-tip" id="map-tip">지도를 눌러 목적지를 정하세요</div>
     </section>
@@ -151,6 +151,6 @@
 
   <dialog id="consent-dialog" aria-labelledby="consent-title"><div class="dialog-content"><span class="consent-icon" aria-hidden="true">↗</span><h2 id="consent-title">외부 서비스 연결</h2><p id="consent-copy"></p><p class="microcopy" id="consent-footnote">이 요청을 진행할 때만 연결해요. GPS 이동 기록은 저장하지 않아요.</p><div class="dialog-actions"><button id="consent-cancel" class="secondary">취소</button><button id="consent-allow" class="primary">동의하고 연결</button></div></div></dialog>
   <script src="assets/vendor/leaflet.js"></script>
-  <script type="module" src="src/app.js?v=stitch-4"></script>
+  <script type="module" src="src/app.js?v=stitch-5"></script>
 </body>
 </html>

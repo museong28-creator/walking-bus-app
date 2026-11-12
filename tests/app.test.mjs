@@ -68,7 +68,8 @@ function harness(options = {}) {
   const layer = () => ({
     addTo() { return this; }, remove() {}, clearLayers() {}, on() { return this; }, bindPopup() { return this; },
   });
-  const map = {...layer(), setView() { return this; }, fitBounds() { return this; }};
+  const mapEvents = new Map();
+  const map = {...layer(), on(type, callback) { mapEvents.set(type,callback); return this; }, setView() { return this; }, fitBounds() { return this; }};
   const L = {map: () => map, control: {zoom: () => layer()}, tileLayer: layer, layerGroup: layer,
     polyline: layer, marker: layer, divIcon: value => value, latLngBounds: value => value};
   class ClockDate extends Date { static now() { return now; } }
@@ -83,6 +84,7 @@ function harness(options = {}) {
   vm.runInContext(appSource, context, {filename: 'src/app.js'});
   return {
     app: context.appTest, element, document, window, navigator, watches, cleared, busTargets,
+    mapClick(lat,lng) { mapEvents.get('click')({latlng:{lat,lng}}); },
     get now() { return now; }, advance: milliseconds => { now += milliseconds; },
     tick() { for (const callback of intervals) callback(); },
     position({speed = 1.2, accuracy = 5, timestamp = now, latitude = 0, longitude = 0} = {}, watchIndex = watches.length - 1) {
@@ -323,4 +325,47 @@ test('completed speed survives destination transition and manual adjustment chan
  assert.equal(h.element('speed-source').textContent,'측정 평균');
  h.element('base-speed').value='5';await h.element('base-speed').emit('input');
  assert.match(h.element('journey-pace-note').textContent,/직접 설정 속도 5.0/);
+});
+
+
+test('manual start automatically hands the next map tap to destination', async () => {
+  const h = harness();
+  await h.element('set-start').emit('click');
+  h.mapClick(37.5665,126.978);
+  assert.deepEqual([...h.app.state.position],[37.5665,126.978]);
+  assert.equal(h.app.state.pickingStart,false);
+  h.mapClick(37.57,126.98);
+  assert.deepEqual([...h.app.state.destination.point],[37.57,126.98]);
+  assert.deepEqual([...h.app.state.position],[37.5665,126.978]);
+  assert.equal(h.element('route-button').disabled,false);
+});
+test('explicit destination mode cancels an unfinished start selection', async () => {
+  const h = harness();
+  await h.element('set-start').emit('click');
+  await h.element('set-destination').emit('click');
+  h.mapClick(37.57,126.98);
+  assert.equal(h.app.state.position,null);
+  assert.deepEqual([...h.app.state.destination.point],[37.57,126.98]);
+});
+test('coordinate search resets start mode and subsequent map taps replace destination only', async () => {
+  const h = harness();
+  await h.element('set-start').emit('click');
+  h.mapClick(37.5665,126.978);
+  await h.element('set-start').emit('click');
+  h.element('search-input').value='37.57,126.98';
+  await h.element('search-form').emit('submit');
+  assert.equal(h.app.state.pickingStart,false);
+  h.mapClick(37.58,126.99);
+  assert.deepEqual([...h.app.state.position],[37.5665,126.978]);
+  assert.deepEqual([...h.app.state.destination.point],[37.58,126.99]);
+});
+test('clearing destination and returning from calibration reset map selection mode', async () => {
+  const h = harness();
+  h.app.setDestination([37.57,126.98],'test');
+  await h.element('set-start').emit('click');
+  await h.element('clear-destination').emit('click');
+  assert.equal(h.app.state.pickingStart,false);
+  await h.element('set-start').emit('click');
+  await h.element('onboarding-skip').emit('click');
+  assert.equal(h.app.state.pickingStart,false);
 });

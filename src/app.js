@@ -25,6 +25,7 @@ function renderCalibration() {
   if (calibration.message) $('onboarding-feedback').textContent = calibration.message;
 }
 function leaveOnboarding() {
+  setPickingStart(false);
   calibration.active = false;
   if (!state.mapEnabled && !state.demo) $('map-gate').classList.remove('hidden');
   document.body?.classList.remove('onboarding');
@@ -148,7 +149,17 @@ $('disable-map').addEventListener('click', () => {
 let tileWarning = false;
 tiles.on('tileerror', () => { if (!tileWarning) { tileWarning = true; notice('지도 타일을 불러오지 못했어요. 네트워크를 확인하거나 좌표 입력을 사용해 주세요.'); } });
 
+function setPickingStart(picking) {
+  state.pickingStart = picking;
+  $('set-start').setAttribute?.('aria-pressed', String(picking));
+  $('set-destination').setAttribute?.('aria-pressed', String(!picking));
+  $('map').setAttribute?.('aria-label', picking ? '지도. 누르면 출발지로 지정됩니다.' : '지도. 누르면 목적지로 지정됩니다.');
+  $('set-start').textContent = '출발지 지정';
+  $('map-tip').textContent = picking ? '출발지 선택 중 · 지도를 눌러 주세요' : '목적지 선택 중 · 원하는 곳을 눌러 주세요';
+}
 function setDestination(point, name, source = '지도에서 선택한 지점') {
+  // Search, stops and shared destinations must also leave start-picking mode.
+  setPickingStart(false);
   meetingUI?.destinationChanged(point);
   clearRequests(); state.destination = {point,name,source}; state.route = null; state.busArrival = null;
   $('destination-name').textContent = name;
@@ -161,7 +172,7 @@ function setDestination(point, name, source = '지도에서 선택한 지점') {
 $('clear-destination').addEventListener('click', () => {
   meetingUI?.destinationChanged(null);
   if (state.demo) exitDemo();
-  clearRequests(); state.destination = null; state.route = null; state.busArrival = null;
+  clearRequests(); setPickingStart(false); state.destination = null; state.route = null; state.busArrival = null;
   $('destination-name').textContent = '지도에서 목적지를 선택해 주세요';
   $('destination-detail').textContent = '장소 검색이나 좌표 입력도 가능해요';
   $('clear-destination').classList.add('hidden'); $('map-tip').textContent = '지도를 눌러 목적지를 정하세요';
@@ -172,7 +183,7 @@ map.on('click', event => {
   const point = [event.latlng.lat,event.latlng.lng];
   if (state.pickingStart) {
     stopTracking(); clearRequests(); tracker.reset();
-    state.start = point; state.position = point; state.route = null; state.pickingStart = false;
+    state.start = point; state.position = point; state.route = null; setPickingStart(false);
     $('set-start').textContent = '출발지 지정'; $('map-tip').textContent = '이제 지도에서 목적지를 선택해 주세요';
     notice('출발지를 직접 정했어요. 실제 걷기 속도를 쓰려면 위치 측정을 시작해 주세요.');
     draw(); render();
@@ -180,10 +191,13 @@ map.on('click', event => {
 });
 $('set-start').addEventListener('click', () => {
   if (state.demo) exitDemo();
-  state.pickingStart = !state.pickingStart;
-  $('set-start').textContent = state.pickingStart ? '출발지 지정 취소' : '출발지 지정';
-  $('map-tip').textContent = state.pickingStart ? '지도를 눌러 출발지를 정하세요' : '지도를 눌러 목적지를 정하세요';
+  setPickingStart(!state.pickingStart);
   if (!state.mapEnabled) notice('온라인 지도를 켠 뒤 출발지를 선택해 주세요. 위치 정보 전송 없이 체험할 수도 있어요.');
+});
+$('set-destination').addEventListener('click', () => {
+  if (state.demo) exitDemo();
+  setPickingStart(false);
+  notice(state.mapEnabled ? '지도에서 원하는 곳을 누르거나 위 검색창에서 목적지를 찾아 주세요.' : '온라인 지도를 켜면 목적지를 지도에서 고를 수 있어요. 검색창에 좌표를 직접 입력해도 돼요.');
 });
 $('fit-map').addEventListener('click', fitMap);
 
