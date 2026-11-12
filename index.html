@@ -12,13 +12,13 @@
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="assets/vendor/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=stitch-7">
+  <link rel="stylesheet" href="styles.css?v=auth-9">
   <title>몇분 걸음 · 나의 속도로 도착하기</title>
 </head>
 <body class="pace-app onboarding">
   <header class="header">
     <a class="brand" href="./" aria-label="몇분 걸음 처음 화면"><span class="brand-icon" aria-hidden="true">↗</span><span>몇분 걸음<small>나의 속도로 도착하기</small></span></a>
-    <div class="header-actions"><button id="journey-theme" class="ob-icon" aria-label="화면 테마 전환">◐</button><button class="text-button" id="recalibrate-button">내 속도 측정</button><button class="text-button" id="demo-button">먼저 체험하기 <span aria-hidden="true">↗</span></button></div>
+    <div class="header-actions"><button class="text-button" id="account-button">계정</button><button id="journey-theme" class="ob-icon" aria-label="화면 테마 전환">◐</button><button class="text-button" id="recalibrate-button">내 속도 측정</button><button class="text-button" id="demo-button">먼저 체험하기 <span aria-hidden="true">↗</span></button></div>
   </header>
 
   <main class="workspace">
@@ -152,7 +152,15 @@
   </main>
 
   <dialog id="consent-dialog" aria-labelledby="consent-title"><div class="dialog-content"><span class="consent-icon" aria-hidden="true">↗</span><h2 id="consent-title">외부 서비스 연결</h2><p id="consent-copy"></p><p class="microcopy" id="consent-footnote">이 요청을 진행할 때만 연결해요. GPS 이동 기록은 저장하지 않아요.</p><div class="dialog-actions"><button id="consent-cancel" class="secondary">취소</button><button id="consent-allow" class="primary">동의하고 연결</button></div></div></dialog>
+  <dialog id="account-dialog" aria-labelledby="account-title"><div class="dialog-content account-content">
+    <h2 id="account-title">몇분 걸음 계정</h2>
+    <p>Google 로그인은 실시간 정보의 안전한 이용을 준비하기 위한 기능이에요. 지금은 로그인만 연결하며, 버스·카카오 도보 정보는 아직 활성화되지 않았어요.</p>
+    <p class="microcopy">로그인 준비를 누르면 Google/Firebase에 연결돼요. 로그인하면 이름·이메일·계정 ID가 이 앱의 Firebase 인증에 제공돼요. 위치는 로그인 과정에서 보내지 않아요. 로그인은 이 브라우저 탭 세션에만 유지돼요.</p>
+    <p id="account-status" role="status" aria-live="polite">로그인 없이도 기존 지도와 보행 측정을 이용할 수 있어요.</p>
+    <section id="account-identity" hidden><strong id="account-name"></strong><label for="account-uid">계정 ID · 초기 이용 권한 설정용</label><input id="account-uid" readonly autocomplete="off" spellcheck="false"><button id="account-copy" class="secondary">계정 ID 복사</button><p class="microcopy">직원1 채팅에 이 ID만 보내 주세요. 비밀번호·인증 토큰은 필요하지 않아요.</p></section>
+    <div class="account-actions"><button id="account-prepare" class="primary">동의하고 로그인 준비</button><button id="account-login" class="primary" hidden>Google 계정 선택</button><button id="account-logout" class="secondary" hidden>로그아웃</button><button id="account-close" class="secondary">닫기</button></div>
+  </div></dialog>
   <script src="assets/vendor/leaflet.js"></script>
-  <script type="module" src="src/app.js?v=stitch-7"></script>
+  <script type="module" src="src/app.js?v=auth-9"></script>
 </body>
 </html>

@@ -1,3 +1,4 @@
+import {initAccountUI} from './account-ui.js';
 import {DEFAULT_SPEED, SpeedTracker, distance, pathDistance, projectOnRoute, etaSeconds, catchStatus, parseCoordinates} from './core.js';
 import {SERVICES, getWalkingRoute, searchPlaces, getNearbyStops} from './services.js';
 import {initMeetupUI} from './meetup-ui.js';
@@ -8,6 +9,7 @@ const mapAPI = createMapAPI({key:KAKAO_JAVASCRIPT_KEY,leaflet:L});
 const mapProvider = KAKAO_JAVASCRIPT_KEY.trim() ? 'Kakao' : 'OpenStreetMap';
 
 const $ = id => document.getElementById(id);
+const accountSession=initAccountUI();
 $('map-provider-consent').textContent = `지도를 켜면 화면에 보이는 지역과 IP가 ${mapProvider} 지도 서버에 전달돼요.`;
 $('onboarding-map').textContent = `지도 배경 켜기 · ${mapProvider}에 표시 지역과 IP 전달 동의`; 
 const tracker = new SpeedTracker();
