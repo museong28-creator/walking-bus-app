@@ -223,18 +223,18 @@ $('search-form').addEventListener('submit', async event => {
   if (state.demo) exitDemo();
   const coordinates = parseCoordinates(query);
   if (coordinates) { setDestination(coordinates,'좌표로 정한 목적지','직접 입력'); map.setView(coordinates,16); return; }
-  if (!(await askConsent('장소 이름 검색', `입력한 검색어 “${query}”를 Nominatim (nominatim.openstreetmap.org)에 보내요. 현재 GPS 위치는 보내지 않아요. 검색어에 집 주소 등 개인정보가 포함될 수 있어요.`))) return;
+  if (!(await askConsent('장소 이름 검색', `입력한 검색어 “${query}”를 ${mapAPI.searchPlaces ? 'Kakao 장소 검색 (dapi.kakao.com)' : 'Nominatim (nominatim.openstreetmap.org)'}에 보내요. 현재 GPS 위치는 보내지 않아요. 검색어에 집 주소 등 개인정보가 포함될 수 있어요.`))) return;
   searchController?.abort(); searchController = new AbortController();
   const controller = searchController, epoch = state.requestEpoch;
   $('search-button').disabled = true; notice('장소를 찾고 있어요…');
   try {
-    const results = await searchPlaces(query, controller.signal);
+    const results = await (mapAPI.searchPlaces ? mapAPI.searchPlaces(query, controller.signal) : searchPlaces(query, controller.signal));
     if (epoch !== state.requestEpoch || controller.signal.aborted) return;
     $('search-results').replaceChildren();
     for (const result of results) {
       const li = document.createElement('li'), button = document.createElement('button');
-      button.type = 'button'; button.textContent = result.name;
-      button.addEventListener('click', () => { setDestination(result.point,result.name,'Nominatim 검색'); map.setView(result.point,16); });
+      button.type = 'button'; button.textContent = result.address ? `${result.name} · ${result.address}` : result.name;
+      button.addEventListener('click', () => { setDestination(result.point,result.name,result.source || 'Nominatim 검색'); map.setView(result.point,16); });
       li.append(button); $('search-results').append(li);
     }
     $('search-results').classList.toggle('hidden',results.length === 0);
