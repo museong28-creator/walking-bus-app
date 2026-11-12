@@ -58,7 +58,7 @@ test('large/non-JSON upstream response is rejected safely',async()=>{
   }
 });
 test('HTTP API enforces origin, method, JSON body, no query credentials and returns no-store',async t=>{
-  let calls=0;const server=createNavigationServer({authorize:async()=>true,allowedOrigins:['https://example.test'],service:{request:async()=>{calls++;return {ok:true};}}});
+  let calls=0;const server=createNavigationServer({authorize:async()=>({uid:'test-user'}),allowedOrigins:['https://example.test'],service:{request:async()=>{calls++;return {ok:true};}}});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));const base=`http://127.0.0.1:${server.address().port}`;
   const request=(path='/v1/walk',options={})=>fetch(base+path,{method:'POST',headers:{Origin:'https://example.test','Content-Type':'application/json'},body:'{}',...options});
   assert.equal((await request('/v1/walk',{headers:{Origin:'https://evil.test','Content-Type':'application/json'}})).status,403);
@@ -86,4 +86,18 @@ test('spoofing allowed Origin cannot bypass authentication gate',async t=>{
     assert.equal(result.status,authorize?401:503);assert.equal(calls,0);
     assert.ok(!(await result.text()).includes('secret'));
   }
+});
+test('only authenticated principal, not a client body UID, reaches quota reservation',async t=>{
+  let reservedUid;
+  const service=createNavigationService({kakaoKey:'fixture',reserveQuota:async({uid})=>{reservedUid=uid;return true;},fetchImpl:async()=>response(walk)});
+  const server=createNavigationServer({service,allowedOrigins:['https://example.test'],authorize:async()=>({uid:'verified-owner'})});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const result=await fetch(`http://127.0.0.1:${server.address().port}/v1/walk`,{method:'POST',headers:{Origin:'https://example.test','Content-Type':'application/json'},body:JSON.stringify({start,end,uid:'forged-user'})});
+  assert.equal(result.status,200);assert.equal(reservedUid,'verified-owner');
+});
+test('authenticated session check reserves durable quota without provider keys or upstream calls',async()=>{
+ let calls=0,uid;const api=createNavigationService({reserveQuota:async value=>{uid=value.uid;return true;},fetchImpl:()=>{calls++;}});
+ assert.deepEqual(await api.request('/v1/session',{}, {uid:'owner'}),{authenticated:true,quotaReservation:true,liveNavigation:false});
+ assert.equal(uid,'owner');assert.equal(calls,0);
+ const locked=createNavigationService();await assert.rejects(locked.request('/v1/session'),{code:'SECURITY_NOT_CONFIGURED'});
 });

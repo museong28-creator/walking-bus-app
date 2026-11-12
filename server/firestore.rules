@@ -1,0 +1,9 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // All counters are backend-only. Admin SDK access is governed by IAM.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

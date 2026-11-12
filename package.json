@@ -11,5 +11,8 @@
     "build": "node scripts/build.mjs",
     "server": "node server/meeting-server.mjs",
     "navigation-server": "node server/navigation-api.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "14.5.1"
   }
 }

@@ -31,3 +31,7 @@ test('signed-out request never fetches, abort during token acquisition never fet
   const aborted=createNavigationClient({origin:NAVIGATION_API_ORIGIN,getIdToken:async()=>{controller.abort();return 'fixture';},fetchImpl:()=>{calls++;}});
   await assert.rejects(aborted.cities(controller.signal),{name:'AbortError'});assert.equal(calls,0);
 });
+test('session check validates server identity/quota response without claiming live provider data',async()=>{
+ const c=createNavigationClient({origin:NAVIGATION_API_ORIGIN,getIdToken:async()=> 'fixture.token',fetchImpl:async()=>new Response(JSON.stringify({authenticated:true,quotaReservation:true,liveNavigation:false}))});
+ assert.equal((await c.sessionCheck()).liveNavigation,false);
+});

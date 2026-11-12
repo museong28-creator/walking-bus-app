@@ -78,3 +78,33 @@
 - 별도 영속 저장소/인증 서비스를 도입한다면 먼저 무료 한도·초과 요금 차단·계정 승인·데이터 보존을 확인해야 합니다. 현재 새 계정을 만들거나 과금 리소스를 추가하지 않았습니다.
 
 키 입력은 인증·저장소 연결이 검증된 다음 Render 대시보드 Environment에서 직접 진행합니다. 채팅이나 공개 저장소에 키를 올리지 않습니다. TAGO 두 서비스 활용 승인과 첫 시험 도시/정류장도 필요합니다. 현재 사용자 화면은 기존 동작을 유지합니다.
+
+## Firebase Spark 보호 어댑터 (준비 코드, 미배포)
+
+`server/firebase-security.mjs`는 Firebase Admin SDK를 사용합니다. 정상 Google 로그인, 이메일 확인, 허용 UID, 토큰 서명/프로젝트/만료/폐기/계정 비활성화를 검증합니다. Google 이메일 문자열만으로 허용하지 않습니다. 운영 초기에는 소유자 UID만 허용합니다.
+
+Firestore `navigationQuota` 컬렉션에서 전체 하루 한도와 사용자 하루/분당 한도를 **한 트랜잭션**으로 선점합니다. 하루는 UTC 기준이며 실패한 제공기관 호출도 사용량에 포함됩니다. 기본 전체 하루 100, 사용자 하루 30, 사용자 분당 6입니다. 문서는 날짜와 카운터, UID의 SHA-256 식별값만 담습니다. 경로/위치/이메일/토큰은 저장하지 않습니다. 메모리 제한은 보조용으로 유지합니다. 저장소 오류·손상·타임아웃은 요청을 막으며 무료 초과 과금을 활성화하지 않습니다.
+
+아래 환경변수는 **Render 서버 전용**입니다. `NAV_FIREBASE_SERVICE_ACCOUNT_JSON`은 비밀 환경변수로 직접 입력하고 저장소나 채팅에 붙여 넣지 않습니다.
+
+| 이름 | 값/용도 |
+|---|---|
+| `NAV_FIREBASE_PROJECT_ID` | `myeotbun-georeum` |
+| `NAV_FIRESTORE_DATABASE_ID` | `(default)` |
+| `NAV_ALLOWED_FIREBASE_UIDS` | 실제 소유자가 Google 로그인한 뒤 확인한 UID. 처음에는 소유자만 |
+| `NAV_FIREBASE_SERVICE_ACCOUNT_JSON` | 전용 최소권한 서비스 계정 JSON (비밀) |
+| `NAV_PER_USER_DAILY_CALLS` | 기본 `30` |
+| `NAV_PER_USER_MINUTE_CALLS` | 기본 `6` |
+
+최소권한 전용 계정은 프로젝트 맞춤 역할 `NavigationQuotaRuntime`에 `datastore.databases.get`, `datastore.entities.get`, `datastore.entities.create`, `datastore.entities.update`, `firebaseauth.users.get` 다섯 권한만 부여합니다. 이 권한은 트랜잭션 시작/롤백, 정해진 문서 읽기·생성·갱신, 토큰 폐기/사용자 상태 조회에 사용합니다. 문서 삭제·목록 조회, 사용자 변경, 설정·IAM 관리 권한은 포함하지 않습니다. Firebase Admin SDK는 보안 규칙을 우회하므로 IAM 권한은 프로젝트 내 해당 API에 적용되며 특정 컬렉션만으로 자동 제한되지 않습니다. Owner/Editor, IAM 관리, 키 관리 권한은 런타임에 부여하지 않습니다. 보안 규칙으로 Admin SDK의 IAM 권한이 줄어들지는 않습니다. 선택 프로젝트만 담는 전용 프로젝트인지도 확인합니다. 서비스 계정 생성/권한 부여/키 발급은 별도 승인이 필요한 보안 설정으로 취급합니다.
+
+`server/firestore.rules`는 모든 브라우저 직접 읽기/쓰기를 거부하는 규칙 초안입니다. 파일을 추가했다고 Firebase에 배포되는 것은 아닙니다. 실제 콘솔 규칙과 IAM을 확인해야 합니다. Cloud Functions/Blaze/결제 계정은 사용하지 않습니다.
+
+실사용 전 확인 순서:
+1. Google Auth와 앱 도메인 설정, Firestore Spark 데이터베이스, 실제 default-deny 규칙.
+2. 소유자의 실제 로그인 후 UID 확보. 브라우저는 Firebase SDK가 발급한 단기 ID 토큰을 HTTPS Authorization Bearer로 보냅니다. 공통 하드코딩 토큰이나 장기 서비스 계정 키는 금지.
+3. 최소권한 전용 서버 자격증명을 안전하게 Render에 설정. Firebase 브라우저 config는 이 자격증명을 대신하지 않습니다.
+4. 공급자 키 없이 로그인/미로그인/폐기 토큰/다른 UID 차단을 검증. 실제 Firestore 동시 예약과 프로세스 재시작 후 한도 유지를 검증.
+5. 그다음 공급자 키를 안전하게 설정하고 TAGO 지원 도시·정류장, 실제 도보 응답을 검증.
+
+현재 테스트는 합성 Auth/트랜잭션 어댑터 기반입니다. 실제 Firebase 인증, IAM, Firestore 동시성 또는 재시작 검증을 통과했다는 뜻이 아닙니다. 로그인 UI/브라우저 토큰 전송도 별도 연결해야 합니다.
