@@ -80,6 +80,7 @@ function harness(options = {}) {
     getWalkingRoute: async () => {throw new Error('Unexpected network request');},
     searchPlaces: async () => {throw new Error('Unexpected network request');},
     getNearbyStops: async () => {throw new Error('Unexpected network request');},
+    initAccountUI: () => ({}),
     initMeetupUI: () => ({refresh() {},pauseSharing() {},destinationChanged() {},useBusTime(timestamp) {busTargets.push(timestamp);}}),
   });
   vm.runInContext(appSource, context, {filename: 'src/app.js'});
