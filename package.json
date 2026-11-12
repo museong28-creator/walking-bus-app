@@ -7,8 +7,9 @@
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check src/map-config.js && node --check src/map-adapter.js && node --check src/app.js && node --check src/core.js && node --check src/services.js && node --check src/meeting.js && node --check src/sharing.js && node --check src/meetup-ui.js && node --check server/meeting-server.mjs && node --check sw.js && npm test",
+    "check": "node --check server/navigation-api.mjs && node --check src/map-config.js && node --check src/map-adapter.js && node --check src/app.js && node --check src/core.js && node --check src/services.js && node --check src/meeting.js && node --check src/sharing.js && node --check src/meetup-ui.js && node --check server/meeting-server.mjs && node --check sw.js && npm test",
     "build": "node scripts/build.mjs",
-    "server": "node server/meeting-server.mjs"
+    "server": "node server/meeting-server.mjs",
+    "navigation-server": "node server/navigation-api.mjs"
   }
 }
