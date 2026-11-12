@@ -30,6 +30,7 @@ function leaveOnboarding() {
   document.body?.classList.remove('onboarding');
   $('onboarding-card').classList.add('hidden');
   map.invalidateSize?.();
+  window.scrollTo?.({top:0,behavior:'auto'});
 }
 $('onboarding-start').addEventListener('click', () => {
   if (state.tracking) stopTracking();
@@ -43,7 +44,7 @@ $('onboarding-finish').addEventListener('click', () => {
   state.baseSpeed = calibration.values.reduce((a,b)=>a+b,0) / calibration.values.length;
   $('base-speed').value = (state.baseSpeed * 3.6).toFixed(1);
   $('base-speed-value').textContent = `${(state.baseSpeed * 3.6).toFixed(1)} km/h`;
-  calibration.done = true; stopTracking();
+  calibration.done = true; state.speedOrigin = 'calibrated'; stopTracking();
   calibration.message = `측정 완료! 이번 보행의 평균은 시속 ${(state.baseSpeed * 3.6).toFixed(1)}km예요. 목적지를 선택하고 도보 경로를 찾아보세요. 이후 ETA는 이 설정 속도로 계산해요.`;
   $('onboarding-title').textContent = '나만의 속도를 찾았어요.';
   $('onboarding-copy').textContent = '신호 대기, 경사와 GPS 오차에 따라 실제 도착 시간은 달라질 수 있어요.';
@@ -63,8 +64,9 @@ $('onboarding-theme').addEventListener('click', () => {
   const light = document.body?.classList.toggle('ob-light');
   $('onboarding-theme').setAttribute?.('aria-label', light ? '어두운 화면으로 전환' : '밝은 화면으로 전환');
 });
+$('journey-theme').addEventListener('click', () => document.body?.classList.toggle('ob-light'));
 const state = {start:null, position:null, destination:null, route:null, tracking:false, watchId:null, watchEpoch:0,
-  baseSpeed:4.3 / 3.6, mapEnabled:false, pickingStart:false, demo:false, demoProgress:0, demoSpeed:DEFAULT_SPEED,
+  speedOrigin:'default', baseSpeed:4.3 / 3.6, mapEnabled:false, pickingStart:false, demo:false, demoProgress:0, demoSpeed:DEFAULT_SPEED,
   busArrival:null, requestEpoch:0, routeBusy:false, stopBusy:false, lastGoodFix:0, wakeLock:null};
 let routeController, searchController, stopController, pendingConsent;
 let meetingUI = null;
@@ -353,6 +355,7 @@ $('bus-form').addEventListener('submit', event => {
   notice('직접 입력한 시간과 현재 목적지까지의 도보 시간을 비교해요. 실제 버스 도착정보와 탑승 보장을 의미하지 않아요.'); render();
 });
 $('base-speed').addEventListener('input', () => {
+  state.speedOrigin = 'manual';
   state.baseSpeed = Number($('base-speed').value) / 3.6;
   $('base-speed-value').textContent = `${Number($('base-speed').value).toFixed(1)} km/h`;
   render();
@@ -377,7 +380,8 @@ function render() {
   $('stops-button').textContent = state.stopBusy ? '정류장 찾는 중…' : '주변 700m 정류장 찾기 ↗';
   const speedValid = Number.isFinite(e.speed) && !e.stale && !e.unreliable;
   $('walking-speed').textContent = speedValid ? `${(e.speed * 3.6).toFixed(1)} km/h` : '--';
-  $('speed-source').textContent = state.demo ? '가상 속도' : state.tracking ? e.stale ? '신호 대기' : e.unreliable ? '측정 보류' : tracker.current === null ? '측정 중' : 'GPS 측정' : '설정 속도';
+  $('journey-pace-note').textContent = state.demo ? '가상 체험 · 실제 보행 기록이 아니에요' : state.speedOrigin === 'calibrated' ? `내 측정 평균 ${(state.baseSpeed * 3.6).toFixed(1)} km/h · GPS 추정치` : `${state.speedOrigin === 'manual' ? '직접 설정' : '기본'} 속도 ${(state.baseSpeed * 3.6).toFixed(1)} km/h · 실제 측정값이 아니에요`;
+  $('speed-source').textContent = state.demo ? '가상 속도' : state.tracking ? e.stale ? '신호 대기' : e.unreliable ? '측정 보류' : tracker.current === null ? '측정 중' : 'GPS 측정' : state.speedOrigin === 'calibrated' ? '측정 평균' : state.speedOrigin === 'manual' ? '직접 설정' : '기본 속도';
   $('tracking-tag').innerHTML = `<i></i>${state.demo ? '가상 체험' : state.tracking ? e.stale ? 'GPS 대기' : '측정 중' : '설정 속도'}`;
   $('tracking-tag').classList.toggle('active',state.tracking && !e.stale);
   $('eta-label').textContent = state.demo ? '가상 경로 예상 도착까지' : '예상 도착까지';

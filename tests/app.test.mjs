@@ -174,7 +174,7 @@ test('backgrounding stops tracking, rejects late callbacks, and labels fallback 
   assert.equal(h.app.state.tracking, false);
   assert.deepEqual(h.cleared, [1]);
   assert.match(h.element('notice').textContent, /화면 잠금 또는 앱 전환/);
-  assert.equal(h.element('speed-source').textContent, '설정 속도');
+  assert.equal(h.element('speed-source').textContent, '기본 속도');
   assert.match(h.element('eta-arrival').textContent, /설정 속도 기준/);
   h.advance(1000); h.position({latitude: 1});
   assert.equal(h.app.state.position[0], 0);
@@ -308,4 +308,19 @@ test('onboarding new samples after a long interruption must recalibrate',async()
   for(let i=0;i<7;i++){h.position({speed:1.2});h.advance(5000);}
   assert.equal(h.element('onboarding-finish').disabled,false);
   h.advance(31000);h.position({speed:1.2});assert.equal(h.element('onboarding-finish').disabled,true);
+});
+test('skip keeps default unmeasured label and never starts GPS or external map', async()=>{
+ const h=harness();await h.element('onboarding-skip').emit('click');
+ assert.equal(h.watches.length,0);assert.equal(h.app.state.mapEnabled,false);
+ assert.match(h.element('journey-pace-note').textContent,/기본 속도.*실제 측정값이 아니에요/);
+ assert.equal(h.element('onboarding-card').classList.contains('hidden'),true);
+});
+test('completed speed survives destination transition and manual adjustment changes provenance',async()=>{
+ const h=harness();await h.element('onboarding-start').emit('click');
+ for(let i=0;i<7;i++){h.position({latitude:i*.000055,speed:1.2});if(i<6)h.advance(5000);}
+ await h.element('onboarding-finish').emit('click');await h.element('onboarding-skip').emit('click');
+ assert.match(h.element('journey-pace-note').textContent,/내 측정 평균 4.3/);
+ assert.equal(h.element('speed-source').textContent,'측정 평균');
+ h.element('base-speed').value='5';await h.element('base-speed').emit('input');
+ assert.match(h.element('journey-pace-note').textContent,/직접 설정 속도 5.0/);
 });

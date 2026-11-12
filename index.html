@@ -10,13 +10,13 @@
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="assets/vendor/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=stitch-3">
+  <link rel="stylesheet" href="styles.css?v=stitch-4">
   <title>내 걸음 · 나의 속도로 도착하기</title>
 </head>
-<body class="onboarding">
+<body class="pace-app onboarding">
   <header class="header">
-    <a class="brand" href="./" aria-label="내 걸음 처음 화면"><span class="brand-icon" aria-hidden="true">↗</span><span>내 걸음<small>MY PACE</small></span></a>
-    <div class="header-actions"><span class="prototype">개인용 웹 프로토타입</span><button class="text-button" id="recalibrate-button">내 속도 측정</button><button class="text-button" id="demo-button">먼저 체험하기 <span aria-hidden="true">↗</span></button></div>
+    <a class="brand" href="./" aria-label="내 걸음 처음 화면"><span class="brand-icon" aria-hidden="true">↗</span><span>MY PACE<small>나의 속도로 도착하기</small></span></a>
+    <div class="header-actions"><button id="journey-theme" class="ob-icon" aria-label="화면 테마 전환">◐</button><button class="text-button" id="recalibrate-button">내 속도 측정</button><button class="text-button" id="demo-button">먼저 체험하기 <span aria-hidden="true">↗</span></button></div>
   </header>
 
   <main class="workspace">
@@ -29,8 +29,8 @@
       </form>
       <ul class="search-results hidden" id="search-results" aria-label="장소 검색 결과"></ul>
       <div class="map-gate" id="map-gate">
-        <span class="gate-icon" aria-hidden="true">↗</span><h1>어디든, 내 걸음으로.</h1>
-        <p>목적지를 찍으면<br>내가 걷는 속도로 도착 시간을 계산해요.</p>
+        <span class="gate-icon" aria-hidden="true">↗</span><h1>나의 다음 목적지는?</h1>
+        <p>지도를 켜고 목적지를 골라보세요.<br>내 속도에 맞춘 도착 시간을 알아봐요.</p>
         <button id="enable-map" class="primary">온라인 지도 켜기</button>
         <button id="offline-demo" class="text-button">데이터 없이 체험하기</button>
         <small>지도를 켜면 화면에 보이는 지역과 IP가<br>OpenStreetMap 지도 서버에 전달돼요.</small>
@@ -62,7 +62,7 @@
         <button id="onboarding-map" class="ob-text ob-map-toggle">지도 배경 켜기 · 지도 서버 연결 동의 후</button>
         <details class="ob-help"><summary>측정은 어떻게 하나요?</summary><p>탁 트인 곳에서 평소 속도로 걸어주세요. 정확한 GPS와 최소 30초 동안의 여러 보행 표본이 모이면 적용할 수 있어요. 1~2분 정도 걸으면 비교하기 좋아요. 멈춤, 낮은 정확도, 오래된 신호는 속도 결과에 사용하지 않아요. GPS 추정치이므로 실제 속도와 차이가 날 수 있어요.</p></details>
       </section>
-      <div class="panel-intro"><div><p class="eyebrow">나의 속도로 도착하기</p><h2>오늘은 어디까지?</h2></div><span class="walking-symbol" aria-hidden="true">↗</span></div>
+      <div class="panel-intro"><div><p class="eyebrow">03 DESTINATION</p><h2>오늘은 어디로 걸을까요?</h2></div><span class="walking-symbol" aria-hidden="true">↗</span></div><p id="journey-pace-note" class="pace-summary" role="status">기본 속도 4.3 km/h · 아직 측정하지 않았어요</p>
       <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
       <section class="destination-card" aria-label="선택한 목적지">
         <div class="destination-icon" aria-hidden="true">◎</div><div class="destination-copy"><p class="label">목적지</p><h3 id="destination-name">지도에서 목적지를 선택해 주세요</h3><p class="muted" id="destination-detail">장소 검색이나 좌표 입력도 가능해요</p></div><button id="clear-destination" class="icon-button hidden" aria-label="목적지 지우기">×</button>
@@ -80,7 +80,7 @@
       <div class="primary-actions"><button class="primary" id="gps-button"><span aria-hidden="true">◎</span> 내 위치로 걷기 시작</button><button class="secondary" id="route-button" disabled>도보 경로 찾기</button></div>
       <p class="microcopy" id="gps-note">GPS는 기본적으로 이 기기에서 처리해요. 친구 공유는 별도 동의 후 켜요. iPhone에서는 화면을 켜 두세요.</p>
 
-      <section class="meeting-section" aria-label="목표 도착 시간">
+      <details class="journey-tool" id="meeting-tools"><summary>◷ 약속 시간<small>여유 있게 도착하기</small><span aria-hidden="true">＋</span></summary>      <section class="meeting-section" aria-label="목표 도착 시간">
         <div class="section-heading"><h3>◷ 약속 시간에 맞춰</h3><span class="outline-tag">안전이 먼저</span></div>
         <p class="section-description">약속이나 버스 시간을 정하면 필요한 속도와<br>내 편한 걸음으로 남는 시간을 비교해요.</p>
         <form id="deadline-form" class="stack-form">
@@ -93,8 +93,9 @@
         <div id="deadline-result" class="plan-result hidden" role="status"><strong id="deadline-headline"></strong><p id="deadline-detail"></p><small id="deadline-pace"></small></div>
         <p class="microcopy">설정 속도는 안전을 보장하지 않아요. 빠듯하면 시간을 조정하거나 다음 버스를 확인하세요. 뛰거나 무리하게 속도를 높이지 마세요.</p>
       </section>
+      </details>
 
-      <section class="friends-section" aria-label="친구와 약속">
+      <details class="journey-tool" id="friends-tools"><summary>♧ 친구와 약속<small>공유 서버 설정 필요</small><span aria-hidden="true">＋</span></summary>      <section class="friends-section" aria-label="친구와 약속">
         <div class="section-heading"><h3>♧ 친구와 함께 만나요</h3><span class="outline-tag" id="sharing-badge">서버 설정 필요</span></div>
         <p class="section-description">이번 약속에 친구를 초대해요.<br>친구가 직접 동의한 실제 위치만 지도에 표시해요.</p>
         <div class="privacy-pill">위치 공유는 기본 꺼짐 · 언제든 중지</div>
@@ -116,8 +117,9 @@
         </div>
         <p class="microcopy">화면 잠금·앱 전환 시 내 공유를 중지해요. 30초 넘은 위치는 오래된 정보로 표시하고 90초 후 숨겨요. 마지막 위치만 임시 보관하며, 친구의 이동 경로를 기록하지 않아요.</p>
       </section>
+      </details>
 
-      <section class="bus-section" aria-label="버스 연결">
+      <details class="journey-tool" id="bus-tools"><summary>▣ 버스 시간 비교<small>실시간 미연결 · 직접 입력</small><span aria-hidden="true">＋</span></summary>      <section class="bus-section" aria-label="버스 연결">
         <div class="section-heading"><h3><span aria-hidden="true">▣</span> 버스까지 이어서</h3><span class="outline-tag">실시간 미연결</span></div>
         <p>근처 정류장을 목적지로 정하고,<br>알고 있는 버스 도착 시간과 비교해 보세요.</p>
         <button class="secondary wide" id="stops-button">주변 700m 정류장 찾기 <span aria-hidden="true">↗</span></button>
@@ -129,6 +131,7 @@
         <div id="bus-result" class="bus-result hidden" role="status"></div>
         <p class="microcopy">정류장은 OpenStreetMap에 등록된 정보만 제공해요. 전국 실시간 도착정보와 운행 여부는 아직 연결되지 않았어요.</p>
       </section>
+      </details>
 
       <details class="settings"><summary>속도 설정과 이용 안내 <span aria-hidden="true">+</span></summary>
         <div class="settings-content">
@@ -148,6 +151,6 @@
 
   <dialog id="consent-dialog" aria-labelledby="consent-title"><div class="dialog-content"><span class="consent-icon" aria-hidden="true">↗</span><h2 id="consent-title">외부 서비스 연결</h2><p id="consent-copy"></p><p class="microcopy" id="consent-footnote">이 요청을 진행할 때만 연결해요. GPS 이동 기록은 저장하지 않아요.</p><div class="dialog-actions"><button id="consent-cancel" class="secondary">취소</button><button id="consent-allow" class="primary">동의하고 연결</button></div></div></dialog>
   <script src="assets/vendor/leaflet.js"></script>
-  <script type="module" src="src/app.js?v=stitch-3"></script>
+  <script type="module" src="src/app.js?v=stitch-4"></script>
 </body>
 </html>
