@@ -1,7 +1,7 @@
 import {DEFAULT_SPEED, SpeedTracker, distance, pathDistance, projectOnRoute, etaSeconds, catchStatus, parseCoordinates} from './core.js';
 import {SERVICES, getWalkingRoute, searchPlaces, getNearbyStops} from './services.js';
 import {initMeetupUI} from './meetup-ui.js';
-import {createMapAPI} from './map-adapter.js';
+import {createMapAPI} from './map-adapter.js?v=stitch-7';
 import {KAKAO_JAVASCRIPT_KEY} from './map-config.js';
 
 const mapAPI = createMapAPI({key:KAKAO_JAVASCRIPT_KEY,leaflet:L});
