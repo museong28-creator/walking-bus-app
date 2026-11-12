@@ -71,13 +71,21 @@ export function normalizeArrivals(data,now){
   return {provider:'TAGO',status:arrivals.length?'estimated':'no_data',fetchedAt:new Date(now).toISOString(),expiresAt:new Date(now+30000).toISOString(),arrivals};
 }
 
-export function createNavigationService({kakaoKey='',tagoKey='',fetchImpl=fetch,now=Date.now,maxDailyCalls=100,timeoutMs=10000}={}){
+export function createNavigationService({kakaoKey='',tagoKey='',fetchImpl=fetch,now=Date.now,maxDailyCalls=100,timeoutMs=10000,reserveQuota}={}){
   if(!Number.isSafeInteger(maxDailyCalls)||maxDailyCalls<1||maxDailyCalls>1000) throw new Error('Invalid daily limit');
   let day='',calls=0,inflight=0;
   const cache=new Map();
   async function upstream(url,headers={}){
     const today=new Date(now()).toISOString().slice(0,10);
     if(today!==day){day=today;calls=0;}
+    if(calls>=maxDailyCalls||inflight>=4)fail(429,'LOCAL_QUOTA','호출 제한에 도달했어요. 나중에 다시 시도해 주세요.');
+    // The local counter is only a secondary limit. A durable backend must
+    // atomically reserve before every provider request, including failed calls.
+    if(typeof reserveQuota!=='function')fail(503,'SECURITY_NOT_CONFIGURED','서버 보호 설정이 완료되지 않았어요.');
+    let reserved=false;
+    try{reserved=await reserveQuota({day:today,limit:maxDailyCalls});}catch{}
+    if(reserved!==true)fail(503,'QUOTA_UNAVAILABLE','사용량 보호 상태를 확인할 수 없어 요청을 중단했어요.');
+    // Recheck after awaiting storage to keep local concurrency bounded.
     if(calls>=maxDailyCalls||inflight>=4)fail(429,'LOCAL_QUOTA','호출 제한에 도달했어요. 나중에 다시 시도해 주세요.');
     calls++;inflight++;
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
@@ -132,7 +140,7 @@ export function createNavigationService({kakaoKey='',tagoKey='',fetchImpl=fetch,
   }};
 }
 
-export function createNavigationServer({service=createNavigationService(),allowedOrigins=['http://localhost:3000','http://127.0.0.1:3000']}={}){
+export function createNavigationServer({service=createNavigationService(),allowedOrigins=['http://localhost:3000','http://127.0.0.1:3000'],authorize}={}){
   const origins=new Set(allowedOrigins);
   if(!origins.size||origins.has('*')||[...origins].some(x=>{try{return new URL(x).origin!==x;}catch{return true;}}))throw new Error('Explicit origins required');
   const slots=new Map();
@@ -147,6 +155,12 @@ export function createNavigationServer({service=createNavigationService(),allowe
       if(req.method!=='POST')fail(405,'METHOD_NOT_ALLOWED','POST 요청만 지원해요.');
       if(!/^application\/json(?:;|$)/i.test(req.headers['content-type']||''))fail(415,'JSON_REQUIRED','JSON 요청이 필요해요.');
       if(!/^\/v1\/(walk|stops|arrivals|cities)$/.test(req.url))fail(404,'NOT_FOUND','지원하지 않는 요청이에요.');
+      // CORS is not authentication. No environment flag or shared browser key
+      // bypasses this gate. Production must supply a verified session adapter.
+      if(typeof authorize!=='function')fail(503,'SECURITY_NOT_CONFIGURED','서버 보호 설정이 완료되지 않았어요.');
+      let authorized=false;
+      try{authorized=await authorize(req);}catch{}
+      if(authorized!==true)fail(401,'AUTH_REQUIRED','로그인이 필요해요.');
       const now=Date.now(),ip=req.socket.remoteAddress;
       for(const [key,slot] of slots)if(now-slot.start>60000)slots.delete(key);
       const slot=slots.get(ip)||{start:now,count:0};
