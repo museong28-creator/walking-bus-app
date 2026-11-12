@@ -267,3 +267,45 @@ test('changing destination or clearing the countdown removes a previous bus comp
   h.app.setDestination([1, 1], 'Different stop');
   assert.equal(h.app.state.busArrival, null);
 });
+
+test('onboarding never requests GPS until the user starts and a single fix cannot finish', async () => {
+  const h=harness(); assert.equal(h.watches.length,0);
+  await h.element('onboarding-start').emit('click');
+  assert.match(h.element('onboarding-feedback').textContent,/권한/);
+  h.position(); assert.equal(h.element('onboarding-finish').disabled,true);
+});
+test('onboarding calibrates from real moving samples then applies and stops GPS', async () => {
+  const h=harness();await h.element('onboarding-start').emit('click');
+  for(let i=0;i<7;i++){h.position({latitude:i*.000055,speed:1.2});if(i<6)h.advance(5000);}
+  assert.equal(h.element('onboarding-finish').disabled,false);
+  await h.element('onboarding-finish').emit('click');
+  assert.equal(h.app.state.tracking,false);assert.equal(h.app.state.baseSpeed,1.2);
+  assert.equal(h.element('onboarding-speed').textContent,'4.3');
+  assert.match(h.element('onboarding-feedback').textContent,/측정 완료/);
+});
+test('onboarding denial and retry clear old samples; skip stops the watch', async () => {
+  const h=harness();await h.element('onboarding-start').emit('click');h.watches[0].failure({code:1});
+  assert.match(h.element('onboarding-feedback').textContent,/권한/);
+  await h.element('onboarding-start').emit('click');assert.equal(h.watches.length,2);
+  h.position();assert.equal(h.element('onboarding-finish').disabled,true);
+  await h.element('onboarding-skip').emit('click');assert.equal(h.app.state.tracking,false);
+  assert.equal(h.element('onboarding-card').classList.contains('hidden'),true);
+});
+test('poor accuracy can display approximate location but never becomes a route start or speed', async()=>{
+  const h=harness();await h.element('onboarding-start').emit('click');h.position({accuracy:150});
+  assert.equal(h.app.state.position,null);assert.equal(h.element('onboarding-speed').textContent,'—');
+  assert.match(h.element('map-caption').textContent,/대략적인 위치/);assert.equal(h.element('onboarding-finish').disabled,true);
+});
+test('onboarding stale samples, stationary walking and app switching cannot finish', async()=>{
+  const h=harness();await h.element('onboarding-start').emit('click');
+  for(let i=0;i<8;i++){h.position({speed:0});h.advance(5000);}
+  assert.equal(h.element('onboarding-finish').disabled,true);
+  h.document.visibilityState='hidden';await h.document.emit('visibilitychange');
+  assert.equal(h.app.state.tracking,false);assert.match(h.element('onboarding-feedback').textContent,/앱 전환/);
+});
+test('onboarding new samples after a long interruption must recalibrate',async()=>{
+  const h=harness();await h.element('onboarding-start').emit('click');
+  for(let i=0;i<7;i++){h.position({speed:1.2});h.advance(5000);}
+  assert.equal(h.element('onboarding-finish').disabled,false);
+  h.advance(31000);h.position({speed:1.2});assert.equal(h.element('onboarding-finish').disabled,true);
+});
