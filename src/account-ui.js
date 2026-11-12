@@ -1,16 +1,18 @@
 import {createAccountSession} from './firebase-session.js';
-export function initAccountUI({document:doc=document,session=createAccountSession(),clipboard=globalThis.navigator?.clipboard}={}){
+import {createAuthenticatedNavigationClient} from './navigation-client.js';
+export function initAccountUI({document:doc=document,session=createAccountSession(),clipboard=globalThis.navigator?.clipboard,navigation}={}){
   const $=id=>doc.getElementById(id),dialog=$('account-dialog');let busy=false;
+  navigation??=createAuthenticatedNavigationClient(session);
   const status=message=>{$('account-status').textContent=message;};
   const render=()=>{
     const user=session.user;
     $('account-button').textContent=user?'내 계정':'계정';
     $('account-prepare').hidden=session.ready||!!user;
     $('account-login').hidden=!session.ready||!!user;
-    $('account-logout').hidden=!user;$('account-identity').hidden=!user;
+    $('account-check').hidden=!user;$('account-logout').hidden=!user;$('account-identity').hidden=!user;
     $('account-name').textContent=user?(user.displayName||'Google 계정'):'';
     $('account-uid').value=user?.uid||'';
-    for(const id of ['account-prepare','account-login','account-logout','account-copy'])$(id).disabled=busy;
+    for(const id of ['account-prepare','account-login','account-logout','account-copy','account-check'])$(id).disabled=busy;
   };
   const errors=error=>{
     if(['auth/popup-closed-by-user','auth/cancelled-popup-request'].includes(error?.code))return '로그인을 취소했어요. 다시 시도할 수 있어요.';
@@ -28,6 +30,11 @@ export function initAccountUI({document:doc=document,session=createAccountSessio
   $('account-prepare').addEventListener('click',()=>perform(async()=>{status('Google 로그인 연결을 준비 중이에요…');await session.prepare();if(!session.user)status('준비됐어요. 아래 버튼을 눌러 Google 계정을 선택해 주세요.');}));
   $('account-login').addEventListener('click',()=>perform(()=>{status('Google 창에서 계정을 선택해 주세요.');return session.login();}));
   $('account-logout').addEventListener('click',()=>perform(async()=>{await session.logout();status('로그아웃했어요.');}));
+  $('account-check').addEventListener('click',()=>perform(async()=>{
+    status('서버 인증과 사용량 저장을 확인 중이에요. 무료 서버가 쉬고 있으면 잠시 걸릴 수 있어요…');
+    try{await navigation.sessionCheck();status('서버 인증과 사용량 저장 확인 완료. 확인 요청 1회가 한도에 기록됐어요. 실시간 버스·카카오 도보 정보는 아직 준비 중이에요.');}
+    catch{status('서버 연결 확인이 아직 완료되지 않았어요. 무료 서버 시작에 1분 정도 걸릴 수 있어요. 잠시 후 다시 눌러 주세요. 계속 실패하면 직원1에게 알려 주세요.');}
+  }));
   $('account-copy').addEventListener('click',async()=>{
     if(!session.user||busy)return;
     try{await clipboard.writeText(session.user.uid);status('계정 ID를 복사했어요. 직원1 채팅에 보내 주세요. 비밀번호나 인증 토큰은 보내지 마세요.');}

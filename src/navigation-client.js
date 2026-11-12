@@ -40,6 +40,11 @@ export function createNavigationClient({origin, fetchImpl = fetch, now = Date.no
     } finally {clearTimeout(timer);signal?.removeEventListener('abort',abort);}
   }
   return {
+    async sessionCheck(signal){
+      const data=await request('session',{},signal);
+      if(data?.authenticated!==true||data?.quotaReservation!==true||data?.liveNavigation!==false)invalid();
+      return data;
+    },
     async walking(start,end,signal,mode='SHORTEST') {
       if (!isCoordinate(start) || !isCoordinate(end) || !['SHORTEST','BROAD_FIRST','ACCESSIBLE'].includes(mode)) invalid();
       const data = await request('walk',{start,end,mode},signal);
