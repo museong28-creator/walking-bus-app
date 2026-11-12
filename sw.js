@@ -1,5 +1,5 @@
-const CACHE = 'my-pace-static-v6-stitch';
-const FILES = ['./','./index.html','./styles.css','./styles.css?v=stitch-6','./src/app.js','./src/app.js?v=stitch-6','./src/map-adapter.js','./src/map-config.js','./src/core.js','./src/services.js','./src/meeting.js','./src/sharing.js','./src/meetup-ui.js','./assets/vendor/leaflet.js','./assets/vendor/leaflet.css','./assets/icon.svg','./manifest.webmanifest'];
+const CACHE = 'my-pace-static-v7-stitch';
+const FILES = ['./','./index.html','./styles.css','./styles.css?v=stitch-7','./src/app.js','./src/app.js?v=stitch-7','./src/map-adapter.js','./src/map-adapter.js?v=stitch-7','./src/map-config.js','./src/core.js','./src/services.js','./src/meeting.js','./src/sharing.js','./src/meetup-ui.js','./assets/vendor/leaflet.js','./assets/vendor/leaflet.css','./assets/icon.svg','./manifest.webmanifest'];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES))); });
 self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('my-pace-static-') && key !== CACHE).map(key => caches.delete(key))))); });
 self.addEventListener('fetch', event => {
