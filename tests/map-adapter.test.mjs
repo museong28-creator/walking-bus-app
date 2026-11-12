@@ -30,3 +30,20 @@ test('SDK load errors are reported and a deliberate retry can load again',async(
 test('main and calibration share one SDK script and separate map state',async()=>{
   const f=fake(),api=createMapAPI({key:'public-key',...f}),a=api.map('main'),b=api.map('calibration').setView([37,127],17);const x=a.enable(),y=b.enable();assert.equal(f.scripts.length,1);f.scripts[0].onload();await Promise.all([x,y]);assert.equal(f.maps.length,2);assert.equal(b.instance.getLevel(),2);a.disable();assert.notEqual(b.instance,null);b.disable();
 });
+test('Kakao place search loads services lazily and returns real place names/addresses without GPS',async()=>{
+  const f=fake();let call;
+  f.window.kakao.maps.services={Status:{OK:'OK',ZERO_RESULT:'ZERO_RESULT'},Places:class{keywordSearch(...args){call=args;}}};
+  const api=createMapAPI({key:'public-key',...f});const pending=api.searchPlaces(' 서울역 ');
+  assert.match(f.scripts[0].src,/libraries=services/);f.scripts[0].onload();await Promise.resolve();await Promise.resolve();
+  assert.equal(call[0],'서울역');assert.deepEqual(call[2],{size:10});
+  call[1]([{place_name:'서울역',road_address_name:'서울 용산구',x:'126.97',y:'37.55'},null,{x:'',y:'37'}],'OK');
+  assert.deepEqual(await pending,[{name:'서울역',address:'서울 용산구',point:[37.55,126.97],source:'Kakao 장소 검색'}]);assert.equal(f.maps.length,0);
+});
+test('Kakao search empty, failed and cancelled requests settle without stale results',async()=>{
+  const f=fake();let cb;f.window.kakao.maps.services={Status:{OK:'OK',ZERO_RESULT:'ZERO_RESULT'},Places:class{keywordSearch(q,callback){cb=callback;}}};
+  const api=createMapAPI({key:'public-key',...f});const controller=new AbortController();
+  const cancelled=api.searchPlaces('서울역',controller.signal);f.scripts[0].onload();await Promise.resolve();await Promise.resolve();controller.abort();await assert.rejects(cancelled,{name:'AbortError'});cb([],'OK');
+  const empty=api.searchPlaces('없는장소');await Promise.resolve();cb([],'ZERO_RESULT');assert.deepEqual(await empty,[]);
+  const failed=api.searchPlaces('서울역');await Promise.resolve();cb(null,'ERROR');await assert.rejects(failed,/사용 권한/);
+  await assert.rejects(api.searchPlaces('a'),/2~180/);
+});

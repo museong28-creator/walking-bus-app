@@ -1,3 +1,4 @@
+import {isCoordinate} from './core.js';
 // Small Leaflet-shaped surface shared by the journey, calibration and friend maps.
 // Kakao is loaded only after the user enables the online map.
 export function createMapAPI({key = '', leaflet, document = globalThis.document, window = globalThis.window}) {
@@ -12,7 +13,7 @@ export function createMapAPI({key = '', leaflet, document = globalThis.document,
       else resolve(window.kakao.maps);
     };
     const timer = setTimeout(() => finish(new Error('Kakao 지도 연결 시간이 초과됐어요.')),15000);
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false`;
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false&libraries=services`;
     script.onerror = () => finish(new Error('Kakao 지도를 불러오지 못했어요. JavaScript 키와 등록 도메인을 확인해 주세요.'));
     script.onload = () => {
       if (!window.kakao?.maps?.load) return finish(new Error('Kakao 지도 SDK가 준비되지 않았어요.'));
@@ -20,6 +21,39 @@ export function createMapAPI({key = '', leaflet, document = globalThis.document,
     };
     document.head.append(script);
   });
+  async function searchPlaces(query, signal) {
+    const clean = query.trim();
+    if (clean.length < 2 || clean.length > 180) throw new Error('장소 이름을 2~180자로 입력해 주세요.');
+    if (signal?.aborted) throw new DOMException('검색 취소', 'AbortError');
+    const k = await load();
+    if (signal?.aborted) throw new DOMException('검색 취소', 'AbortError');
+    if (!k.services?.Places) throw new Error('Kakao 장소 검색을 사용할 수 없어요. 앱 설정을 확인해 주세요.');
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (error, results) => {
+        if (settled) return;
+        settled = true; clearTimeout(timer); signal?.removeEventListener('abort', abort);
+        error ? reject(error) : resolve(results);
+      };
+      const abort = () => finish(new DOMException('검색 취소', 'AbortError'));
+      const timer = setTimeout(() => finish(new Error('장소 검색 시간이 초과됐어요. 다시 시도해 주세요.')), 15000);
+      signal?.addEventListener('abort', abort, {once:true});
+      try {
+        // No map, location, bounds, or GPS bias: only the submitted search string is shared.
+        new k.services.Places().keywordSearch(clean, (data, status) => {
+          if (status === k.services.Status.ZERO_RESULT) return finish(null, []);
+          if (status !== k.services.Status.OK || !Array.isArray(data)) return finish(new Error('Kakao 장소 검색에 실패했어요. 사용 권한과 이용 한도를 확인해 주세요.'));
+          const numeric = x => (typeof x === 'number' || typeof x === 'string') && String(x).trim() !== '' && Number.isFinite(Number(x));
+          const results = data.filter(p => p && numeric(p.y) && numeric(p.x)).map(p => ({
+            name: String(p.place_name || '검색한 장소'),
+            address: String(p.road_address_name || p.address_name || ''),
+            point: [Number(p.y), Number(p.x)], source: 'Kakao 장소 검색'
+          })).filter(p => isCoordinate(p.point));
+          finish(null, results);
+        }, {size: 10});
+      } catch (error) { finish(error); }
+    });
+  }
   const level = zoom => Math.max(1,Math.min(14,19-zoom));
   const latLng = (k,p) => new k.LatLng(p[0],p[1]);
   class MapView {
@@ -65,6 +99,7 @@ export function createMapAPI({key = '', leaflet, document = globalThis.document,
     }
   }
   return {
+    searchPlaces,
     map:id=>new MapView(id),layerGroup:()=>new Group(),divIcon:options=>options,latLngBounds:points=>points,
     marker:(point,options)=>new Item('marker',point,options),polyline:(points,options)=>new Item('line',points,options),
     control:{zoom:()=>({addTo(map){map.zoomControl=true;return this;}})},
