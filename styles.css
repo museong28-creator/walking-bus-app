@@ -58,3 +58,11 @@
 @media(max-width:760px){.pace-app .map-tools{left:15px;right:15px;justify-content:flex-end;gap:6px}.pace-app .map-tools button{font-size:12px;padding:0 12px}.pace-app .map-tools #fit-map{width:44px;font-size:20px;padding:0}}
 
 .account-content{max-width:480px;line-height:1.6}.account-content [hidden]{display:none!important}.account-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}.account-actions button{padding:12px 18px}.account-content input{display:block;width:100%;margin:8px 0;padding:12px;border:1px solid #86948a55;border-radius:10px;background:var(--ob-card,#fff);color:inherit;font-size:14px}.account-content label{display:block;margin-top:16px;font-size:12px}.account-content #account-status{padding:12px;border-radius:12px;background:#4edea312;font-size:13px}.pace-app #account-dialog{background:var(--ob-card);color:var(--ob-text);max-width:calc(100vw - 24px);max-height:calc(100dvh - 40px);overflow:auto}.pace-app #account-dialog .microcopy{color:var(--ob-muted)}
+
+/* Measurement has one upper location map, not a second journey map below it. */
+.onboarding .map-section{display:none}
+.onboarding .workspace{display:block;max-width:720px}
+.onboarding .journey-panel{width:100%}
+.onboarding .ob-mini-map{height:clamp(260px,40dvh,420px);width:100%;overflow:hidden}
+/* Keep actions in flow: fixed finish/start buttons overlapped after pausing. */
+@media(max-width:760px){.onboarding .ob-primary:not(.hidden){position:static;width:100%;box-shadow:0 6px 24px #10b98116}.onboarding .workspace{padding-bottom:32px}.onboarding .ob-ring{max-width:100%}.onboarding .ob-bottom{align-items:center}}
