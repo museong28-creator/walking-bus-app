@@ -12,7 +12,7 @@
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="assets/vendor/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=pace-14">
+  <link rel="stylesheet" href="styles.css?v=pace-15">
   <title>몇분 걸음 · 나의 속도로 도착하기</title>
 </head>
 <body class="pace-app onboarding">
@@ -50,6 +50,8 @@
         <p class="ob-eyebrow">EVERY WALK, YOUR PACE</p>
         <h1 id="onboarding-title">내 걸음으로,<br>더 정확한 도착.</h1>
         <p id="onboarding-copy" class="ob-copy">먼저 내 위치를 찾고, 평소처럼 걸어보세요.<br>나만의 속도로 목적지까지의 시간을 알아봐요.</p>
+        <p id="onboarding-map-status" class="ob-feedback" role="status">GPS 측정과 지도 연결은 별개예요. 지도를 보려면 아래 버튼을 눌러 주세요.</p>
+        <button id="onboarding-map" class="ob-primary ob-map-toggle">지도 켜고 내 위치 보기</button>
         <div id="onboarding-map-view" class="ob-mini-map hidden" aria-label="측정한 내 위치 지도"></div>
         <div class="ob-meter">
           <span id="onboarding-status" class="ob-status" role="status">● 측정 준비</span>
@@ -63,7 +65,6 @@
         <button id="onboarding-finish" class="ob-primary hidden" disabled>측정 완료하고 이 속도 사용하기</button>
         </div>
         <div class="ob-bottom"><button id="onboarding-stop" class="ob-text hidden">측정 중지</button><button id="onboarding-skip" class="ob-text">나중에 측정하고 지도 보기 →</button></div>
-        <button id="onboarding-map" class="ob-text ob-map-toggle">지도 배경 켜기 · 지도 서버 연결 동의 후</button>
         <details class="ob-help"><summary>측정은 어떻게 하나요?</summary><p>탁 트인 곳에서 평소 속도로 걸어주세요. 정확한 GPS와 최소 30초 동안의 여러 보행 표본이 모이면 적용할 수 있어요. 1~2분 정도 걸으면 비교하기 좋아요. 멈춤, 낮은 정확도, 오래된 신호는 속도 결과에 사용하지 않아요. GPS 추정치이므로 실제 속도와 차이가 날 수 있어요.</p></details>
       </section>
       <div class="panel-intro"><div><p class="eyebrow">03 DESTINATION</p><h2>오늘은 어디로 걸을까요?</h2></div><span class="walking-symbol" aria-hidden="true">↗</span></div><p id="journey-pace-note" class="pace-summary" role="status">기본 속도 4.3 km/h · 아직 측정하지 않았어요</p>
@@ -72,6 +73,7 @@
         <div class="destination-icon" aria-hidden="true">◎</div><div class="destination-copy"><p class="label">목적지</p><h3 id="destination-name">지도에서 목적지를 선택해 주세요</h3><p class="muted" id="destination-detail">장소 검색이나 좌표 입력도 가능해요</p></div><button id="clear-destination" class="icon-button hidden" aria-label="목적지 지우기">×</button>
       </section>
 
+      <button class="primary route-primary" id="route-button" disabled>경로와 도착 시간 계산하기</button>
       <section class="eta-card" aria-label="예상 도착 시간">
         <div class="eta-heading"><span id="eta-label">예상 도착까지</span><span class="live-tag" id="tracking-tag"><i></i>준비 중</span></div>
         <div class="eta-number"><span id="eta-minutes">--</span><span class="unit" id="eta-unit">분</span></div>
@@ -79,9 +81,10 @@
         <div class="eta-divider"></div>
         <div class="metrics"><div><span>남은 거리</span><strong id="remaining-distance">--</strong></div><div><span>보행 속도</span><strong id="walking-speed">4.3 <small>km/h</small></strong></div><div><span>계산 기준</span><strong id="speed-source">설정 속도</strong></div></div>
       </section>
+      <p class="route-availability">현재는 일반 도보 경로를 제공해요. 최단·최속 경로 비교와 가로등 밝은 길 추천은 아직 지원하지 않아요. 가로등·밝기 데이터는 연결되지 않았어요.</p>
       <p class="estimate-note" id="estimate-note">실제 도보 경로를 찾기 전에는 도착 시간을 표시하지 않아요.</p>
 
-      <div class="primary-actions"><button class="primary" id="gps-button"><span aria-hidden="true">◎</span> 내 위치로 걷기 시작</button><button class="secondary" id="route-button" disabled>도보 경로 찾기</button></div>
+      <div class="primary-actions"><button class="primary" id="gps-button"><span aria-hidden="true">◎</span> 내 위치로 걷기 시작</button></div>
       <p class="microcopy" id="gps-note">GPS는 기본적으로 이 기기에서 처리해요. 친구 공유는 별도 동의 후 켜요. iPhone에서는 화면을 켜 두세요.</p>
 
       <details class="journey-tool" id="meeting-tools"><summary>◷ 약속 시간<small>여유 있게 도착하기</small><span aria-hidden="true">＋</span></summary>      <section class="meeting-section" aria-label="목표 도착 시간">
@@ -163,6 +166,6 @@
 <div class="account-actions"><button id="account-check" class="primary" hidden>서버 보호 연결 확인</button><button id="account-prepare" class="primary">동의하고 로그인 준비</button><button id="account-login" class="primary" hidden>Google 계정 선택</button><button id="account-logout" class="secondary" hidden>로그아웃</button><button id="account-close" class="secondary">닫기</button></div>
   </div></dialog>
   <script src="assets/vendor/leaflet.js"></script>
-  <script type="module" src="src/app.js?v=pace-14"></script>
+  <script type="module" src="src/app.js?v=pace-15"></script>
 </body>
 </html>

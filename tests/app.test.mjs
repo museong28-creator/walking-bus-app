@@ -478,3 +478,32 @@ test('stale samples cannot be rescued by pressing stop',async()=>{
  h.advance(16000);await h.element('onboarding-stop').emit('click');
  assert.equal(h.element('onboarding-finish').disabled,true);
 });
+
+test('map remains explicit opt-in with a visible explanation during GPS calibration',async()=>{
+  const h=harness(); await h.element('onboarding-start').emit('click');h.position();
+  assert.equal(h.app.state.mapEnabled,false);
+  assert.equal(h.element('onboarding-map-view').classList.contains('hidden'),true);
+  assert.match(h.element('onboarding-map-status').textContent,/아래 버튼/);
+  await h.element('onboarding-map').emit('click');
+  assert.equal(h.app.state.mapEnabled,true);
+  assert.equal(h.element('onboarding-map-view').classList.contains('hidden'),false);
+});
+test('destination selection asks routing consent and cancel keeps coordinates private',async()=>{
+  const h=harness();await h.element('onboarding-skip').emit('click');
+  h.app.state.position=[37.56,126.97];h.app.setDestination([37.57,126.98],'Destination');
+  assert.equal(h.element('consent-dialog').open,true);
+  assert.match(h.element('tracking-tag').innerHTML,/경로 필요/);
+  await h.element('consent-cancel').emit('click');await flushAsync();
+  assert.equal(h.app.state.route,null);assert.equal(h.app.state.routeBusy,false);
+  assert.equal(h.element('eta-minutes').textContent,'--');
+});
+test('new destination closes outdated consent; route errors do not look like speed measuring',async()=>{
+  const h=harness();await h.element('onboarding-skip').emit('click');
+  h.app.state.position=[37.56,126.97];h.app.setDestination([37.57,126.98],'Old');
+  h.app.setDestination([37.58,126.99],'New');
+  await h.element('consent-allow').emit('click');await flushAsync();
+  assert.equal(h.app.state.destination.name,'New');
+  assert.equal(h.app.state.routeBusy,false);
+  assert.match(h.element('notice').textContent,/불러오지 못/);
+  assert.match(h.element('tracking-tag').innerHTML,/경로 필요/);
+});
