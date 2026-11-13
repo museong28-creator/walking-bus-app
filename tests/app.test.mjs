@@ -86,6 +86,8 @@ function harness(options = {}) {
     ...core, SERVICES, createMapAPI, KAKAO_JAVASCRIPT_KEY:'', document, window, navigator, L, Date: ClockDate, Intl, AbortController, console,
     setInterval: callback => { intervals.push(callback); return intervals.length; },
     getWalkingRoute: async () => {throw new Error('Unexpected network request');},
+    getWalkingRoutes: options.getWalkingRoutes || (async () => {throw new Error('Unexpected network request');}),
+    getRouteLamps: options.getRouteLamps || (async () => {throw new Error('Unexpected network request');}),
     searchPlaces: async () => {throw new Error('Unexpected network request');},
     getNearbyStops: options.getNearbyStops || (async () => {throw new Error('Unexpected network request');}),
     initAccountUI: () => ({}),
@@ -530,4 +532,36 @@ test('stop lookup timeout explains retry and restores the map lookup button',asy
  const request=h.element('map-stops').emit('click');await h.element('consent-allow').emit('click');await request;
  assert.match(h.element('notice').textContent,/시간이 초과/);
  assert.equal(h.element('map-stops').disabled,false);assert.equal(h.app.state.stopBusy,false);
+});
+
+
+test('real route candidates sort by personal-pace duration and selection changes ETA route',async()=>{
+ const a=[37.56,126.97],b=[37.561,126.97];
+ const h=harness({getWalkingRoutes:async()=>[
+ {points:[a,[37.5605,126.9704],b],distance:180,snapDistance:0},
+ {points:[a,b],distance:120,snapDistance:0}]});
+ await h.element('onboarding-skip').emit('click');h.app.state.position=a;h.app.setDestination(b,'Destination');
+ await h.element('consent-allow').emit('click');await flushAsync();
+ assert.equal(h.app.state.routes.length,2);assert.equal(h.app.state.route.distance,120);
+ assert.equal(h.element('route-options').children.length,2);assert.match(h.element('route-options').children[0].children[0].textContent,/빠른 도보 후보/);
+ await h.element('route-options').children[1].emit('click');assert.equal(h.app.state.route.distance,180);
+ await h.element('clear-destination').emit('click');assert.equal(h.app.state.routes.length,0);
+});
+test('lamp queries require consent and never call an empty result a dark road',async()=>{
+ const a=[37.56,126.97],b=[37.561,126.97];let calls=0;
+ const h=harness({getWalkingRoutes:async()=>[{points:[a,b],distance:120,snapDistance:0}],getRouteLamps:async()=>{calls++;return [[]];}});
+ await h.element('onboarding-skip').emit('click');h.app.state.position=a;h.app.setDestination(b,'Destination');
+ await h.element('consent-allow').emit('click');await flushAsync();
+ let q=h.element('lamp-button').emit('click');assert.equal(calls,0);await h.element('consent-cancel').emit('click');await q;
+ assert.equal(calls,0);q=h.element('lamp-button').emit('click');await h.element('consent-allow').emit('click');await q;
+ assert.equal(calls,1);assert.match(h.element('lamp-status').textContent,/어두운 길이라는 뜻은 아니/);
+ assert.match(h.element('route-options').children[0].children[2].textContent,/0개 · 실제 밝기 아님/);
+});
+test('new destination invalidates in-flight lighting results',async()=>{
+ const a=[37.56,126.97],b=[37.561,126.97];let resolve;
+ const h=harness({getWalkingRoutes:async()=>[{points:[a,b],distance:120,snapDistance:0}],getRouteLamps:()=>new Promise(r=>resolve=r)});
+ await h.element('onboarding-skip').emit('click');h.app.state.position=a;h.app.setDestination(b,'Destination');await h.element('consent-allow').emit('click');await flushAsync();
+ const q=h.element('lamp-button').emit('click');await h.element('consent-allow').emit('click');await flushAsync();
+ h.app.setDestination([37.562,126.98],'New');resolve([[{id:1,point:a}]]);await q;
+ assert.equal(h.app.state.lampResults,null);assert.equal(h.app.state.lampBusy,false);await h.element('consent-cancel').emit('click');
 });

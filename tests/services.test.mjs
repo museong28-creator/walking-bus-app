@@ -218,3 +218,32 @@ test('aborting an in-flight caller signal cancels the request', async t => {
   controller.abort();
   await assert.rejects(request, {name: 'AbortError'});
 });
+
+test('walking alternatives return only distinct validated provider routes',async t=>{
+ const payload=routePayload();payload.routes.push({distance:650,geometry:{coordinates:[[126.978,37.5665],[126.979,37.569],[126.981,37.57]]}},payload.routes[0],{distance:2});
+ const {getWalkingRoutes,calls}=await fixture(t,payload);const routes=await getWalkingRoutes(start,end);
+ assert.equal(routes.length,2);assert.equal(routes[1].distance,650);
+ assert.equal(new URL(calls[0].url).searchParams.get('alternatives'),'true');
+ assert.match(calls[0].url,/routed-foot/);
+});
+test('one returned path stays one path instead of fabricating alternatives',async t=>{
+ const {getWalkingRoutes}=await fixture(t,routePayload());assert.equal((await getWalkingRoutes(start,end)).length,1);
+});
+test('lamp comparison only counts genuine registered nodes near each candidate',async t=>{
+ const {getRouteLamps,calls}=await fixture(t,{elements:[
+ {id:1,lat:start[0],lon:start[1],tags:{highway:'street_lamp'}},
+ {id:1,lat:start[0],lon:start[1],tags:{highway:'street_lamp'}},
+ {id:2,lat:37.59,lon:127,tags:{highway:'street_lamp'}},
+ {id:3,lat:start[0],lon:start[1],tags:{highway:'bus_stop'}},null]});
+ const result=await getRouteLamps([{points:[start,end],distance:500}]);
+ assert.equal(result[0].length,1);assert.equal(result[0][0].id,1);
+ assert.match(new URL(calls[0].url).searchParams.get('data'),/highway=street_lamp/);
+});
+test('empty lighting data means zero registered nodes, not a dark-road classification',async t=>{
+ const {getRouteLamps}=await fixture(t,{elements:[]});assert.deepEqual(await getRouteLamps([{points:[start,end],distance:500}]),[[]]);
+});
+test('lighting refuses large areas and partial overpass replies',async t=>{
+ const {getRouteLamps,calls}=await fixture(t,{elements:[],remark:'runtime timeout'});
+ await assert.rejects(getRouteLamps([{points:[[37,127],[38,128]],distance:100000}]),/5km/);assert.equal(calls.length,0);
+ await assert.rejects(getRouteLamps([{points:[start,end],distance:500}]),/완전하게/);
+});
