@@ -71,3 +71,35 @@
 .ob-actions{display:flex;flex-direction:column;gap:12px}
 .ob-actions .ob-primary{position:static!important;inset:auto!important;width:100%;margin:0;z-index:auto}
 .ob-actions .ob-secondary{background:transparent;color:var(--ob-text);border:1px solid #86948a66;box-shadow:none;order:2}
+
+/* Phone layout: each map control gets its own row; no banner covers tap targets. */
+.pace-app .map-section:has(.map-gate:not(.hidden)) .map-tools,
+.pace-app .map-section:has(.map-gate:not(.hidden)) .map-tip{display:none}
+@media(max-width:760px){
+  .pace-app .header{height:auto;min-height:68px;padding-top:max(10px,env(safe-area-inset-top));padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right));gap:8px;flex-wrap:wrap}
+  .pace-app .brand{flex-shrink:0}.pace-app .header-actions{gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .pace-app .header-actions .text-button{white-space:nowrap;min-height:44px}
+  .pace-app:not(.onboarding) .map-section{height:clamp(390px,56svh,480px);min-height:390px}
+  .pace-app .demo-banner{top:70px;left:15px;right:15px;min-height:40px;font-size:11px;gap:8px}
+  .pace-app .map-section:has(.demo-banner:not(.hidden)) .map-tools{top:120px}
+  .pace-app .search-results{top:68px;max-height:220px}
+  .pace-app .map-gate{inset:70px 0 40px;padding:16px;max-width:none}
+  .pace-app .map-gate h1{margin:8px 0;font-size:22px}
+  .pace-app .map-gate p{margin:4px 0 12px}
+  .pace-app .map-gate .primary,.pace-app .map-gate>.text-button{min-height:44px}
+  .pace-app .map-gate small{margin-top:4px}
+  .pace-app .stack-form input,.pace-app .stack-form select,.pace-app .bus-form input,.pace-app .settings input,.pace-app .account-content input{font-size:16px;max-width:100%;min-width:0}
+  .pace-app .journey-panel,.pace-app .stack-form,.pace-app .split-fields>div{min-width:0}
+  .pace-app:not(.onboarding) .journey-panel{padding-bottom:max(40px,env(safe-area-inset-bottom))}
+  .onboarding .workspace{padding-bottom:max(32px,env(safe-area-inset-bottom))}
+  .onboarding .ob-top{margin-bottom:16px}.onboarding .ob-steps{margin-bottom:20px}
+  .onboarding .ob-meter{padding:16px}.onboarding .ob-ring{width:180px;height:180px;margin:16px auto}
+  .onboarding .ob-copy{margin-bottom:18px}
+}
+@media(max-width:380px){
+  .pace-app:not(.onboarding) .header-actions{width:100%;justify-content:space-between;border-top:1px solid #86948a22}
+  .pace-app .primary-actions{grid-template-columns:1fr}
+  .pace-app .map-tools{gap:5px}.pace-app .map-tools button{padding:0 9px;font-size:11px}
+  .pace-app .eta-card{padding:20px 16px}.pace-app .metrics{gap:5px}
+  .pace-app .split-fields{grid-template-columns:1fr}
+}
