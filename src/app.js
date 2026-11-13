@@ -28,21 +28,27 @@ function savePace() {
     return true;
   } catch { return false; }
 }
+function calibrationReady() {
+  const fresh = state.tracking && state.lastGoodFix && Date.now() - state.lastGoodFix <= 15000;
+  return Boolean(calibration.active && !calibration.done && calibration.values.length >= 6 && calibration.lastSample - calibration.first >= 30000 && (fresh && tracker.status === 'measured' && tracker.current >= 0.4 || !state.tracking && calibration.readyAtStop));
+}
 function renderCalibration() {
   const active = calibration.active;
   const fresh = state.tracking && state.lastGoodFix && Date.now() - state.lastGoodFix <= 15000;
   const usable = fresh && tracker.status === 'measured' && tracker.current >= 0.4;
-  const ready = usable && calibration.values.length >= 6 && calibration.lastSample - calibration.first >= 30000;
-  $('onboarding-speed').textContent = calibration.done ? (state.baseSpeed * 3.6).toFixed(1) : usable && active ? (tracker.current * 3.6).toFixed(1) : '—';
-  $('onboarding-speed-label').textContent = calibration.done ? '이번 측정 평균 속도' : '현재 보행 속도';
+  const ready = calibrationReady();
+  const stoppedReady = ready && !state.tracking;
+  $('onboarding-speed').textContent = calibration.done ? (state.baseSpeed * 3.6).toFixed(1) : stoppedReady ? (calibration.values.reduce((a,b)=>a+b,0) / calibration.values.length * 3.6).toFixed(1) : usable && active ? (tracker.current * 3.6).toFixed(1) : '—';
+  $('onboarding-speed-label').textContent = calibration.done || stoppedReady ? '이번 측정 평균 속도' : '현재 보행 속도';
   $('onboarding-status').textContent = calibration.done ? '✓ 측정 완료' : !active ? '● 측정 준비' : !state.tracking ? 'Ⅱ 측정 중지' : !fresh ? '● 위치 신호 기다리는 중' : ready ? '● 적용할 준비가 됐어요' : '● 내 걸음 측정 중';
-  $('onboarding-pace').textContent = calibration.done ? '목적지를 정해볼까요?' : usable && active ? 'GPS 기반 추정 속도' : '보행 표본을 기다려요';
+  $('onboarding-pace').textContent = calibration.done ? '목적지를 정해볼까요?' : stoppedReady ? '측정한 평균 속도를 사용할 수 있어요' : usable && active ? 'GPS 기반 추정 속도' : '보행 표본을 기다려요';
   const elapsed = active && calibration.started ? Math.max(0, Math.floor(((state.tracking ? Date.now() : calibration.stopped) - calibration.started) / 1000)) : 0;
   $('onboarding-time').textContent = `${String(Math.floor(elapsed / 60)).padStart(2,'0')}:${String(elapsed % 60).padStart(2,'0')}`;
   $('onboarding-accuracy').textContent = calibration.accuracy === null ? '—' : `±${Math.round(calibration.accuracy)} m`;
-  $('onboarding-finish').classList.toggle('hidden', !active || calibration.done);
+  $('onboarding-finish').classList.toggle('hidden', !active || calibration.done || !state.tracking && !ready);
   $('onboarding-finish').disabled = !ready;
   $('onboarding-start').classList.toggle('hidden', active && state.tracking || calibration.done);
+  $('onboarding-start').classList.toggle('ob-secondary', stoppedReady);
   $('onboarding-start').textContent = active ? '↻ 다시 측정하기' : '◎ 내 위치 측정하기';
   $('onboarding-stop').classList.toggle('hidden', !active || !state.tracking);
   if (calibration.message) $('onboarding-feedback').textContent = calibration.message;
@@ -58,13 +64,13 @@ function leaveOnboarding() {
 }
 $('onboarding-start').addEventListener('click', () => {
   if (state.tracking) stopTracking();
-  Object.assign(calibration,{active:true,done:false,started:Date.now(),first:0,values:[],lastSample:0,accuracy:null,message:'내 위치를 찾고 있어요. 브라우저의 위치 권한을 허용해 주세요.'});
+  Object.assign(calibration,{active:true,done:false,started:Date.now(),readyAtStop:false,first:0,values:[],lastSample:0,accuracy:null,message:'내 위치를 찾고 있어요. 브라우저의 위치 권한을 허용해 주세요.'});
   $('onboarding-map-view').classList.add('hidden');
   startTracking(); renderCalibration();
 });
-$('onboarding-stop').addEventListener('click', () => {stopTracking(); notice('측정을 멈췄어요. 다시 시작하면 새로운 표본으로 측정해요.');render();});
+$('onboarding-stop').addEventListener('click', () => {stopTracking(); notice(calibration.readyAtStop ? '측정을 멈췄어요. 측정한 평균 속도를 사용하거나 다시 측정할 수 있어요.' : '측정을 멈췄어요. 아직 보행 표본이 부족해요. 다시 측정하거나, 측정 없이 지도로 이동하세요.');render();});
 $('onboarding-finish').addEventListener('click', () => {
-  if ($('onboarding-finish').disabled) return;
+  if (!calibrationReady()) return;
   state.baseSpeed = calibration.values.reduce((a,b)=>a+b,0) / calibration.values.length;
   $('base-speed').value = (state.baseSpeed * 3.6).toFixed(1);
   $('base-speed-value').textContent = `${(state.baseSpeed * 3.6).toFixed(1)} km/h`;
@@ -83,7 +89,7 @@ $('recalibrate-button').addEventListener('click', () => {
   $('onboarding-skip').classList.remove('ob-primary'); $('onboarding-skip').textContent = '나중에 측정하고 지도 보기 →';
   $('onboarding-map-view').classList.add('hidden'); calibration.accuracy = null;
   document.body?.classList.add('onboarding');$('onboarding-card').classList.remove('hidden');
-  Object.assign(calibration,{done:false,active:false,started:0,stopped:0,first:0,values:[],lastSample:0,accuracy:null,message:'측정하기를 누르면 새로운 표본으로 시작해요. 기존 속도는 새 측정을 완료할 때까지 유지돼요.'});
+  Object.assign(calibration,{done:false,active:false,readyAtStop:false,started:0,stopped:0,first:0,values:[],lastSample:0,accuracy:null,message:'측정하기를 누르면 새로운 표본으로 시작해요. 기존 속도는 새 측정을 완료할 때까지 유지돼요.'});
   tracker.reset();
   $('onboarding-copy').textContent = '화면을 켜 둔 채 평소처럼 걸어주세요. 새 측정을 완료하면 저장된 속도를 바꿔요.';
   $('onboarding-title').textContent = '내 걸음 속도 측정하기';
@@ -276,6 +282,7 @@ async function requestWakeLock(epoch) {
   } catch { if (state.tracking && epoch === state.watchEpoch) $('gps-note').textContent = '화면 자동 잠금을 막지 못했어요. 화면을 켜 두세요. 잠그거나 앱을 전환하면 측정이 중지돼요.'; }
 }
 function stopTracking() {
+  if (state.tracking) calibration.readyAtStop = calibrationReady();
   calibration.stopped = Date.now();
   if (calibration.active && !calibration.done) calibration.message = '측정을 멈췄어요. 다시 측정하기를 누르면 새 표본으로 시작해요.';
   meetingUI?.pauseSharing('위치 측정이 중지되어 공유도 중지했어요.');

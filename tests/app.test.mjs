@@ -448,3 +448,33 @@ test('remeasuring resets displayed session and old samples but keeps last accept
   const stable=h.storage.get(PACE_KEY);await h.element('onboarding-finish').emit('click');
   assert.equal(h.storage.get(PACE_KEY),stable);
 });
+
+test('stopped incomplete measurement hides unusable finish and retry resets samples', async()=>{
+ const h=harness(); await h.element('onboarding-start').emit('click');h.position({accuracy:28});
+ await h.element('onboarding-stop').emit('click');
+ assert.equal(h.element('onboarding-finish').classList.contains('hidden'),true);
+ assert.equal(h.element('onboarding-start').classList.contains('hidden'),false);
+ assert.match(h.element('onboarding-feedback').textContent,/표본이 부족/);
+ await h.element('onboarding-start').emit('click');
+ assert.equal(h.element('onboarding-start').classList.contains('hidden'),true);
+ assert.equal(h.element('onboarding-finish').disabled,true);
+ await h.element('onboarding-stop').emit('click');await h.element('onboarding-skip').emit('click');
+ assert.equal(h.element('onboarding-card').classList.contains('hidden'),true);
+});
+test('valid stopped measurement remains applicable and persists across revisit',async()=>{
+ const h=harness();await h.element('onboarding-start').emit('click');
+ for(let i=0;i<7;i++){h.position({speed:1.2});if(i<6)h.advance(5000);}
+ await h.element('onboarding-stop').emit('click');h.advance(60000);h.tick();
+ assert.equal(h.element('onboarding-finish').disabled,false);
+ assert.equal(h.element('onboarding-start').classList.contains('ob-secondary'),true);
+ assert.equal(h.element('onboarding-speed').textContent,'4.3');
+ await h.element('onboarding-finish').emit('click');
+ assert.equal(h.element('onboarding-card').classList.contains('hidden'),true);
+ assert.equal(harness({storage:h.storage}).app.state.baseSpeed,1.2);
+});
+test('stale samples cannot be rescued by pressing stop',async()=>{
+ const h=harness();await h.element('onboarding-start').emit('click');
+ for(let i=0;i<7;i++){h.position({speed:1.2});if(i<6)h.advance(5000);}
+ h.advance(16000);await h.element('onboarding-stop').emit('click');
+ assert.equal(h.element('onboarding-finish').disabled,true);
+});

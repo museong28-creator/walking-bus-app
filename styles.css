@@ -66,3 +66,8 @@
 .onboarding .ob-mini-map{height:clamp(260px,40dvh,420px);width:100%;overflow:hidden}
 /* Keep actions in flow: fixed finish/start buttons overlapped after pausing. */
 @media(max-width:760px){.onboarding .ob-primary:not(.hidden){position:static;width:100%;box-shadow:0 6px 24px #10b98116}.onboarding .workspace{padding-bottom:32px}.onboarding .ob-ring{max-width:100%}.onboarding .ob-bottom{align-items:center}}
+
+/* Explicit action stack: stopped/retry and completion never share a fixed slot. */
+.ob-actions{display:flex;flex-direction:column;gap:12px}
+.ob-actions .ob-primary{position:static!important;inset:auto!important;width:100%;margin:0;z-index:auto}
+.ob-actions .ob-secondary{background:transparent;color:var(--ob-text);border:1px solid #86948a66;box-shadow:none;order:2}

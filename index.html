@@ -12,7 +12,7 @@
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="assets/vendor/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=pace-12">
+  <link rel="stylesheet" href="styles.css?v=pace-13">
   <title>몇분 걸음 · 나의 속도로 도착하기</title>
 </head>
 <body class="pace-app onboarding">
@@ -58,8 +58,10 @@
         </div>
         <div id="onboarding-feedback" class="ob-feedback" role="status" aria-live="polite">위치 권한은 아래 버튼을 누른 뒤 요청해요. 완료한 보행 속도만 이 기기에 저장해 다음 방문에도 사용해요. GPS 이동 기록은 저장하지 않아요.</div>
         <p class="ob-phone">▣ iPhone에서는 화면을 켜 두세요. 화면을 잠그거나 다른 앱으로 이동하면 측정이 중지돼요.</p>
+        <div class="ob-actions">
         <button id="onboarding-start" class="ob-primary">◎ 내 위치 측정하기</button>
         <button id="onboarding-finish" class="ob-primary hidden" disabled>측정 완료하고 이 속도 사용하기</button>
+        </div>
         <div class="ob-bottom"><button id="onboarding-stop" class="ob-text hidden">측정 중지</button><button id="onboarding-skip" class="ob-text">나중에 측정하고 지도 보기 →</button></div>
         <button id="onboarding-map" class="ob-text ob-map-toggle">지도 배경 켜기 · 지도 서버 연결 동의 후</button>
         <details class="ob-help"><summary>측정은 어떻게 하나요?</summary><p>탁 트인 곳에서 평소 속도로 걸어주세요. 정확한 GPS와 최소 30초 동안의 여러 보행 표본이 모이면 적용할 수 있어요. 1~2분 정도 걸으면 비교하기 좋아요. 멈춤, 낮은 정확도, 오래된 신호는 속도 결과에 사용하지 않아요. GPS 추정치이므로 실제 속도와 차이가 날 수 있어요.</p></details>
@@ -161,6 +163,6 @@
 <div class="account-actions"><button id="account-check" class="primary" hidden>서버 보호 연결 확인</button><button id="account-prepare" class="primary">동의하고 로그인 준비</button><button id="account-login" class="primary" hidden>Google 계정 선택</button><button id="account-logout" class="secondary" hidden>로그아웃</button><button id="account-close" class="secondary">닫기</button></div>
   </div></dialog>
   <script src="assets/vendor/leaflet.js"></script>
-  <script type="module" src="src/app.js?v=pace-12"></script>
+  <script type="module" src="src/app.js?v=pace-13"></script>
 </body>
 </html>
