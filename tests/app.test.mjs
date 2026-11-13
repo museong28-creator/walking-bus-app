@@ -523,3 +523,11 @@ test('real stop results open a clearly unconnected information panel before rout
   assert.equal(h.element('stop-dialog').open,false);assert.equal(h.app.state.destination.name,'Test stop');
   assert.equal(h.element('consent-dialog').open,true);await h.element('consent-cancel').emit('click');
 });
+
+test('stop lookup timeout explains retry and restores the map lookup button',async()=>{
+ const h=harness({getNearbyStops:async()=>{const e=new Error('aborted');e.name='AbortError';throw e;}});
+ h.app.state.position=[37.56,126.97];
+ const request=h.element('map-stops').emit('click');await h.element('consent-allow').emit('click');await request;
+ assert.match(h.element('notice').textContent,/시간이 초과/);
+ assert.equal(h.element('map-stops').disabled,false);assert.equal(h.app.state.stopBusy,false);
+});
