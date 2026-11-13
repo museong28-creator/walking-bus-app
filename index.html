@@ -12,7 +12,7 @@
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="assets/vendor/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=pace-17">
+  <link rel="stylesheet" href="styles.css?v=pace-18">
   <title>몇분 걸음 · 나의 속도로 도착하기</title>
 </head>
 <body class="pace-app onboarding">
@@ -81,7 +81,15 @@
         <div class="eta-divider"></div>
         <div class="metrics"><div><span>남은 거리</span><strong id="remaining-distance">--</strong></div><div><span>보행 속도</span><strong id="walking-speed">4.3 <small>km/h</small></strong></div><div><span>계산 기준</span><strong id="speed-source">설정 속도</strong></div></div>
       </section>
-      <p class="route-availability">현재는 일반 도보 경로를 제공해요. 최단·최속 경로 비교와 가로등 밝은 길 추천은 아직 지원하지 않아요. 가로등·밝기 데이터는 연결되지 않았어요.</p>
+      <section id="route-comparison" class="route-comparison hidden" aria-labelledby="route-comparison-title">
+        <h3 id="route-comparison-title">어떻게 갈까요?</h3>
+        <p id="route-comparison-note" class="microcopy"></p>
+        <div id="route-options" class="route-options"></div>
+        <div class="transit-unavailable"><strong>버스 + 도보 · 연결 필요</strong><p>버스 노선·환승 경로 API가 아직 연결되지 않아 총 이동시간을 계산할 수 없어요. 정류장 위치만으로 버스 경로를 만들지 않아요.</p></div>
+        <h4>가로등 등록 정보 · 밝기 미확인</h4><p class="microcopy">실제 밝기 자료는 없어요. 선택적으로 지도에 등록된 가로등 수만 확인할 수 있어요. 가로등 수로 밝거나 안전한 길을 추천하지 않아요.</p>
+        <button id="lamp-button" class="secondary wide" disabled>등록 가로등 비교하기</button>
+        <p id="lamp-status" class="microcopy" role="status"></p>
+      </section>
       <p class="estimate-note" id="estimate-note">실제 도보 경로를 찾기 전에는 도착 시간을 표시하지 않아요.</p>
 
       <div class="primary-actions"><button class="primary" id="gps-button"><span aria-hidden="true">◎</span> 내 위치로 걷기 시작</button></div>
@@ -167,6 +175,7 @@
 <div class="account-actions"><button id="account-check" class="primary" hidden>서버 보호 연결 확인</button><button id="account-prepare" class="primary">동의하고 로그인 준비</button><button id="account-login" class="primary" hidden>Google 계정 선택</button><button id="account-logout" class="secondary" hidden>로그아웃</button><button id="account-close" class="secondary">닫기</button></div>
   </div></dialog>
   <script src="assets/vendor/leaflet.js"></script>
-  <script type="module" src="src/app.js?v=pace-17"></script>
+  <script type="module" src="src/app.js?v=pace-18"></script>
 </body>
 </html>
+

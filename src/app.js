@@ -1,6 +1,6 @@
 import {initAccountUI} from './account-ui.js?v=auth-11';
 import {DEFAULT_SPEED, SpeedTracker, distance, pathDistance, projectOnRoute, etaSeconds, catchStatus, parseCoordinates} from './core.js';
-import {SERVICES, getWalkingRoute, searchPlaces, getNearbyStops} from './services.js';
+import {SERVICES, getWalkingRoute, getWalkingRoutes, getRouteLamps, searchPlaces, getNearbyStops} from './services.js?v=pace-18';
 import {initMeetupUI} from './meetup-ui.js';
 import {createMapAPI} from './map-adapter.js?v=pace-16';
 import {KAKAO_JAVASCRIPT_KEY} from './map-config.js';
@@ -100,10 +100,10 @@ $('onboarding-theme').addEventListener('click', () => {
   $('onboarding-theme').setAttribute?.('aria-label', light ? '어두운 화면으로 전환' : '밝은 화면으로 전환');
 });
 $('journey-theme').addEventListener('click', () => document.body?.classList.toggle('ob-light'));
-const state = {start:null, position:null, destination:null, route:null, tracking:false, watchId:null, watchEpoch:0,
+const state = {start:null, position:null, destination:null, route:null, routes:[], selectedRoute:0, lampResults:null, lampBusy:false, lampMessage:'등록 가로등 정보는 별도로 조회해요. 실제 밝기·점등 상태는 알 수 없어요.', tracking:false, watchId:null, watchEpoch:0,
   speedOrigin:'default', baseSpeed:4.3 / 3.6, mapEnabled:false, pickingStart:false, demo:false, demoProgress:0, demoSpeed:DEFAULT_SPEED,
   busArrival:null, requestEpoch:0, routeBusy:false, stopBusy:false, lastGoodFix:0, wakeLock:null};
-let routeController, searchController, stopController, pendingConsent;
+let routeController, searchController, stopController, lampController, pendingConsent;
 let meetingUI = null;
 let lastTick = Date.now();
 
@@ -135,6 +135,7 @@ function marker(point, kind, label) {
 }
 function draw() {
   pathLayer.clearLayers(); markerLayer.clearLayers();
+  for (const candidate of state.routes) if (candidate !== state.route) mapAPI.polyline(candidate.points,{color:'#8390a0',weight:4,opacity:.65,lineCap:'round'}).addTo(pathLayer);
   if (state.route) mapAPI.polyline(state.route.points,{color:'#2455dc',weight:5,opacity:.9,lineCap:'round'}).addTo(pathLayer);
   else if (state.position && state.destination) mapAPI.polyline([state.position,state.destination.point],{color:'#879ab6',weight:3,dashArray:'5 8',opacity:.6}).addTo(pathLayer);
   if (state.position) marker(state.position,'current',state.demo ? '가상 현재 위치' : state.tracking ? '현재 위치' : '설정한 출발지').addTo(markerLayer);
@@ -147,13 +148,14 @@ function fitMap() {
 }
 function clearRequests() {
   state.requestEpoch++;
+  lampController?.abort(); state.routes = []; state.lampResults = null; state.lampBusy = false; state.lampMessage = '등록 가로등 정보는 별도로 조회해요. 실제 밝기·점등 상태는 알 수 없어요.';
   routeController?.abort(); stopController?.abort(); searchController?.abort();
   state.routeBusy = false; state.stopBusy = false;
   $('search-button').disabled = false;
   $('search-results').classList.add('hidden');
   if (pendingConsent) finishConsent(false);
 }
-function askConsent(title, text, footnote = '이 요청을 진행할 때만 연결해요. GPS 이동 기록은 저장하지 않아요.') {
+function askConsent(title, text, footnote = '이 요청을 진행할 때만 연결해요. 이 앱은 GPS 이동 기록을 저장하지 않아요. 외부 서비스의 로그 정책은 별도로 적용돼요.') {
   if (pendingConsent) return Promise.resolve(false);
   $('consent-title').textContent = title; $('consent-copy').textContent = text;
   $('consent-footnote').textContent = footnote;
@@ -365,18 +367,20 @@ async function findRoute() {
   const epoch = state.requestEpoch, start = [...state.position], end = [...state.destination.point];
   if (!(await askConsent('실제 도보 경로 찾기', '선택한 출발지와 목적지의 정확한 좌표를 FOSSGIS 도보 경로 서버 (routing.openstreetmap.de)에 보내요. 현재 위치를 출발지로 쓰면 현재 위치 좌표가 전송돼요. 이동 중에는 경로 서버로 자동 전송하지 않아요.'))) return;
   if (epoch !== state.requestEpoch) return;
+  lampController?.abort(); state.lampResults = null; state.lampBusy = false; state.lampMessage = '등록 가로등 정보는 별도로 조회해요. 실제 밝기·점등 상태는 알 수 없어요.';
   routeController?.abort(); routeController = new AbortController(); const controller = routeController;
   state.routeBusy = true; render(); notice('보행로를 따라가는 경로를 찾고 있어요…');
   try {
-    const route = await getWalkingRoute(start,end,controller.signal);
+    const routes = await getWalkingRoutes(start,end,controller.signal);
     if (epoch !== state.requestEpoch || controller.signal.aborted) return;
-    const firstGap = distance(start,route.points[0]), lastGap = distance(end,route.points.at(-1));
-    state.route = {...route,distance:route.distance + firstGap + lastGap,points:[start,...route.points,end],endpointGap:Math.max(firstGap,lastGap)};
+    state.routes = routes.map(route => { const firstGap = distance(start,route.points[0]), lastGap = distance(end,route.points.at(-1)); return {...route,distance:route.distance + firstGap + lastGap,points:[start,...route.points,end],endpointGap:Math.max(firstGap,lastGap)}; }).sort((a,b)=>a.distance-b.distance);
+    state.selectedRoute = 0; state.route = state.routes[0];
+    const route = state.route;
     $('map-tip').textContent = '내 걸음 속도에 맞춰 도착 시간이 달라져요';
     notice(route.snapDistance > 20 ? `선택한 지점과 보행로 사이에 최대 ${Math.round(route.snapDistance)}m 차이가 있어요. 연결 구간과 실제 출입구를 확인해 주세요.` : '');
     draw(); fitMap();
   } catch (error) {
-    if (!controller.signal.aborted) { state.route = null; draw(); notice(`도보 경로를 불러오지 못했어요. ${error.name === 'AbortError' ? '경로 서비스 응답 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.' : error.message} 점선은 직선거리일 뿐, 도보 경로나 ETA가 아니에요.`); }
+    if (!controller.signal.aborted) { state.route = null; state.routes = []; draw(); notice(`도보 경로를 불러오지 못했어요. ${error.name === 'AbortError' ? '경로 서비스 응답 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.' : error.message} 점선은 직선거리일 뿐, 도보 경로나 ETA가 아니에요.`); }
   } finally { if (controller === routeController) { state.routeBusy = false; render(); } }
 }
 $('route-button').addEventListener('click', findRoute);
@@ -450,8 +454,44 @@ function estimate(now) {
   const seconds = progress && !stale && !unreliable && !offRoute ? arrived ? 0 : etaSeconds(progress.remaining,speed) : null;
   return {stale,unreliable,speed,progress,offRoute,arrived,seconds};
 }
+let comparisonSignature = '';
+function renderComparison() {
+  $('route-comparison').classList.toggle('hidden', !state.destination || state.demo);
+  $('lamp-button').disabled = !state.routes.length || state.lampBusy || state.routeBusy;
+  $('lamp-button').textContent = state.lampBusy ? '등록 가로등 조회 중…' : '등록 가로등 비교하기';
+  $('lamp-status').textContent = state.lampMessage;
+  $('route-comparison-note').textContent = state.routes.length ? `출발점 기준 · ${(state.baseSpeed * 3.6).toFixed(1)}km/h ${state.speedOrigin === 'calibrated' ? '측정 평균' : '설정 속도'}로 비교해요. 신호·경사는 제외해요. ${state.routes.length === 1 ? '제공기관이 경로 1개만 반환했어요. 다른 길은 만들지 않아요.' : '조회된 후보 중 예상 시간이 짧은 순서예요. 모든 길 중 최단·최속을 보장하지 않아요.'}` : '경로를 찾으면 도보 후보별 거리와 예상 시간을 비교해요.';
+  const signature = JSON.stringify([state.routes,state.selectedRoute,state.baseSpeed,state.lampResults,state.routeBusy]);
+  if (signature === comparisonSignature) return;
+  comparisonSignature = signature; $('route-options').replaceChildren();
+  state.routes.forEach((route,index) => {
+    const button = document.createElement('button'); button.className = 'route-option'; button.type = 'button'; button.disabled = state.routeBusy;
+    button.setAttribute?.('aria-pressed',String(index === state.selectedRoute));
+    const title = document.createElement('strong'), detail = document.createElement('span'), lighting = document.createElement('small');
+    title.textContent = `${index === 0 ? state.routes.length > 1 ? '빠른 도보 후보' : '도보 경로' : `다른 도보 경로 ${index + 1}`} · ${Math.max(1,Math.ceil(route.distance / state.baseSpeed / 60))}분`;
+    detail.textContent = `${shortDistance(route.distance)}${index ? ` · 첫 후보보다 약 ${Math.ceil((route.distance-state.routes[0].distance)/state.baseSpeed/60)}분 더` : ''}${index === state.selectedRoute ? ' · 선택됨' : ' · 눌러서 보기'}`;
+    lighting.textContent = state.lampResults ? `경로 20m 이내 등록 가로등 ${state.lampResults[index].length}개 · 실제 밝기 아님` : '가로등 정보 미조회';
+    button.append(title,detail,lighting);button.addEventListener('click',()=>{state.selectedRoute=index;state.route=route;draw();fitMap();render();});$('route-options').append(button);
+  });
+}
+$('lamp-button').addEventListener('click',async()=>{
+  if (!state.routes.length || state.lampBusy || state.routeBusy || state.demo) return;
+  const epoch=state.requestEpoch, routes=state.routes;
+  if (!(await askConsent('등록 가로등 정보 비교', '도보 후보 경로를 감싸는 지역의 좌표 범위를 Overpass (overpass-api.de)에 보내 OpenStreetMap의 등록 가로등을 조회해요. 누락될 수 있으며 개수는 실제 밝기·점등·안전성을 뜻하지 않아요.'))) return;
+  if(epoch!==state.requestEpoch || routes!==state.routes) return;
+  lampController?.abort();lampController=new AbortController();const controller=lampController;
+  state.lampBusy=true;state.lampMessage='등록된 가로등을 조회하고 있어요…';render();
+  try {
+    const results=await getRouteLamps(routes,controller.signal);
+    if(controller.signal.aborted || epoch!==state.requestEpoch || routes!==state.routes)return;
+    state.lampResults=results;
+    state.lampMessage=results.some(r=>r.length) ? '경로 주변의 지도 등록 개수만 비교해요. 반대편 도로의 등불이 포함되거나 누락될 수 있어요. 실제 밝기·점등·안전을 판단할 수 없어 밝은 길로 추천하지 않아요.' : '이 경로 주변에 등록된 가로등을 찾지 못했어요. 가로등이 없거나 어두운 길이라는 뜻은 아니에요. 밝은 길 비교는 자료 부족으로 제공하지 않아요.';
+  }catch(error){if(!controller.signal.aborted)state.lampMessage=error.name==='AbortError' ? '가로등 조회 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.' : `가로등 정보를 확인하지 못했어요. ${error.message}`;}
+  finally{if(controller===lampController){state.lampBusy=false;render();}}
+});
+
 function render() {
-  renderCalibration();
+  renderCalibration(); renderComparison();
   const now = Date.now(), e = estimate(now);
   $('route-button').disabled = !state.position || !state.destination || state.routeBusy || state.demo;
   $('route-button').textContent = state.routeBusy ? '경로 찾는 중…' : state.route ? '도보 경로 다시 찾기' : '경로와 도착 시간 계산하기';
@@ -559,3 +599,4 @@ meetingUI = initMeetupUI({map,L:mapAPI,askConsent,notice,formatTime,
 });
 
 if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('./sw.js').catch(() => {});
+
