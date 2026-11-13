@@ -84,7 +84,8 @@ export function createMapAPI({key = '', leaflet, document = globalThis.document,
     hide(){for(const item of this.items)item.hide();}
   }
   class Item {
-    constructor(type,data,options){this.type=type;this.data=data;this.options=options;}
+    constructor(type,data,options){this.type=type;this.data=data;this.options=options;this.events=new Map();}
+    on(type,callback){this.events.set(type,callback);return this;}
     bindPopup(content){this.popup=content;return this;}
     addTo(group){group.items.add(this);if(group.map?.instance)this.render(group.map);return this;}
     hide(){this.overlay?.setMap(null);this.info?.close();this.overlay=null;this.info=null;}
@@ -94,7 +95,7 @@ export function createMapAPI({key = '', leaflet, document = globalThis.document,
       const content=document.createElement('button');content.type='button';content.className=o.icon.className;content.setAttribute('aria-label',o.alt||'지도 위치');content.style.cssText='width:22px;height:22px;padding:0;border:0;background:transparent;cursor:pointer';
       // Icon HTML is internal static markup, never a search result or friend name.
       content.innerHTML=o.icon.html;
-      content.addEventListener('click',event=>{event.stopPropagation();k.event.preventMap();if(this.popup){this.info ||= new k.InfoWindow({content:this.popup});this.info.setPosition(latLng(k,this.data));this.info.open(map.instance);}});
+      content.addEventListener('click',event=>{event.stopPropagation();k.event.preventMap();if(this.events.has('click')){this.events.get('click')({latlng:{lat:this.data[0],lng:this.data[1]}});return;}if(this.popup){this.info ||= new k.InfoWindow({content:this.popup});this.info.setPosition(latLng(k,this.data));this.info.open(map.instance);}});
       this.overlay=new k.CustomOverlay({map:map.instance,position:latLng(k,this.data),content,xAnchor:.5,yAnchor:.5,zIndex:2});
     }
   }

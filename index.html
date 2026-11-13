@@ -12,7 +12,7 @@
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="assets/vendor/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=pace-15">
+  <link rel="stylesheet" href="styles.css?v=pace-16">
   <title>몇분 걸음 · 나의 속도로 도착하기</title>
 </head>
 <body class="pace-app onboarding">
@@ -38,7 +38,7 @@
         <small id="map-provider-consent">지도를 켜면 화면에 보이는 지역과 IP가<br>OpenStreetMap 지도 서버에 전달돼요.</small>
       </div>
       <div class="map-caption" id="map-caption">초기 지도: 서울 시청 · 현재 위치가 아니에요</div>
-      <div class="map-tools" role="group" aria-label="지도에서 지정할 지점"><button id="set-start" aria-pressed="false" title="지도를 눌러 출발지 지정">출발지 지정</button><button id="set-destination" aria-pressed="true" title="지도를 눌러 목적지 지정">목적지 지정</button><button id="fit-map" title="출발지와 목적지 함께 보기" aria-label="전체 경로 보기">⛶</button></div>
+      <div class="map-tools" role="group" aria-label="지도에서 지정할 지점"><button id="set-start" aria-pressed="false" title="지도를 눌러 출발지 지정">출발지 지정</button><button id="set-destination" aria-pressed="true" title="지도를 눌러 목적지 지정">목적지 지정</button><button id="map-stops" title="주변 정류장 찾기 · 실시간 버스 미연결">▣ 정류장</button><button id="fit-map" title="출발지와 목적지 함께 보기" aria-label="전체 경로 보기">⛶</button></div>
       <div id="demo-banner" class="demo-banner hidden">체험 모드 · 가상 위치와 가상 경로 <button id="exit-demo">종료</button></div>
       <div class="map-tip" id="map-tip">지도를 눌러 목적지를 정하세요</div>
     </section>
@@ -156,6 +156,7 @@
     </aside>
   </main>
 
+  <dialog id="stop-dialog" aria-labelledby="stop-name"><div class="dialog-content"><span class="outline-tag">실시간 미연결</span><h2 id="stop-name">정류장 정보</h2><p id="stop-detail"></p><p>지나가는 버스 노선·도착 예정 시간·운행 중인 버스 위치는 아직 제공하지 않아요.</p><p class="microcopy">지도에서 보이는 정류장은 OpenStreetMap에 등록된 실제 데이터예요. 누락되거나 오래된 정보가 있을 수 있으며, 반대편 정류장과 탑승 방향을 확인해 주세요.</p><div class="dialog-actions"><button id="stop-walk" class="primary">이 정류장까지 걸어가기</button><button id="stop-close" class="secondary">닫기</button></div></div></dialog>
   <dialog id="consent-dialog" aria-labelledby="consent-title"><div class="dialog-content"><span class="consent-icon" aria-hidden="true">↗</span><h2 id="consent-title">외부 서비스 연결</h2><p id="consent-copy"></p><p class="microcopy" id="consent-footnote">이 요청을 진행할 때만 연결해요. GPS 이동 기록은 저장하지 않아요.</p><div class="dialog-actions"><button id="consent-cancel" class="secondary">취소</button><button id="consent-allow" class="primary">동의하고 연결</button></div></div></dialog>
   <dialog id="account-dialog" aria-labelledby="account-title"><div class="dialog-content account-content">
     <h2 id="account-title">몇분 걸음 계정</h2>
@@ -166,6 +167,6 @@
 <div class="account-actions"><button id="account-check" class="primary" hidden>서버 보호 연결 확인</button><button id="account-prepare" class="primary">동의하고 로그인 준비</button><button id="account-login" class="primary" hidden>Google 계정 선택</button><button id="account-logout" class="secondary" hidden>로그아웃</button><button id="account-close" class="secondary">닫기</button></div>
   </div></dialog>
   <script src="assets/vendor/leaflet.js"></script>
-  <script type="module" src="src/app.js?v=pace-15"></script>
+  <script type="module" src="src/app.js?v=pace-16"></script>
 </body>
 </html>
