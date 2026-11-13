@@ -16,3 +16,6 @@ Official references checked 2026-11-13:
 - https://lab.odsay.com/guide/releaseReference?platform=web (transit routing, required apiKey)
 
 Tests include malformed/duplicate route responses, single result, lamp filtering, bounded areas, partial responses, explicit consent/cancel, changed destination during pending request, and UI route selection. Real iPhone field testing is separate.
+
+## pace-19 advisory walking navigation
+OSRM `steps=true` returns actual provider maneuvers. Next maneuver distance uses remaining along-route distance and provider cumulative step distances. Missing/inconsistent steps never become invented directions. GPS must be active and fresh; uncertain fixes and off-route positions suppress directions. The UI warns about overlaps/GPS error and uses relative route direction, not device heading. No voice guidance, background iPhone tracking, automatic rerouting, signal timing or guaranteed accessible/safe path. Real iPhone field testing remains pending.

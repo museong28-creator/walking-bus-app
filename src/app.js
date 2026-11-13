@@ -1,6 +1,7 @@
+import {nextManeuver} from './navigation.js?v=pace-19';
 import {initAccountUI} from './account-ui.js?v=auth-11';
 import {DEFAULT_SPEED, SpeedTracker, distance, pathDistance, projectOnRoute, etaSeconds, catchStatus, parseCoordinates} from './core.js';
-import {SERVICES, getWalkingRoute, getWalkingRoutes, getRouteLamps, searchPlaces, getNearbyStops} from './services.js?v=pace-18';
+import {SERVICES, getWalkingRoute, getWalkingRoutes, getRouteLamps, searchPlaces, getNearbyStops} from './services.js?v=pace-19';
 import {initMeetupUI} from './meetup-ui.js';
 import {createMapAPI} from './map-adapter.js?v=pace-16';
 import {KAKAO_JAVASCRIPT_KEY} from './map-config.js';
@@ -373,7 +374,7 @@ async function findRoute() {
   try {
     const routes = await getWalkingRoutes(start,end,controller.signal);
     if (epoch !== state.requestEpoch || controller.signal.aborted) return;
-    state.routes = routes.map(route => { const firstGap = distance(start,route.points[0]), lastGap = distance(end,route.points.at(-1)); return {...route,distance:route.distance + firstGap + lastGap,points:[start,...route.points,end],endpointGap:Math.max(firstGap,lastGap)}; }).sort((a,b)=>a.distance-b.distance);
+    state.routes = routes.map(route => { const firstGap = distance(start,route.points[0]), lastGap = distance(end,route.points.at(-1)); return {...route,steps:(route.steps || []).map(step=>({...step,at:step.at+firstGap})),distance:route.distance + firstGap + lastGap,points:[start,...route.points,end],endpointGap:Math.max(firstGap,lastGap)}; }).sort((a,b)=>a.distance-b.distance);
     state.selectedRoute = 0; state.route = state.routes[0];
     const route = state.route;
     $('map-tip').textContent = '내 걸음 속도에 맞춰 도착 시간이 달라져요';
@@ -469,7 +470,7 @@ function renderComparison() {
     button.setAttribute?.('aria-pressed',String(index === state.selectedRoute));
     const title = document.createElement('strong'), detail = document.createElement('span'), lighting = document.createElement('small');
     title.textContent = `${index === 0 ? state.routes.length > 1 ? '빠른 도보 후보' : '도보 경로' : `다른 도보 경로 ${index + 1}`} · ${Math.max(1,Math.ceil(route.distance / state.baseSpeed / 60))}분`;
-    detail.textContent = `${shortDistance(route.distance)}${index ? ` · 첫 후보보다 약 ${Math.ceil((route.distance-state.routes[0].distance)/state.baseSpeed/60)}분 더` : ''}${index === state.selectedRoute ? ' · 선택됨' : ' · 눌러서 보기'}`;
+    detail.textContent = `${shortDistance(route.distance)}${index ? ` · 첫 후보보다 약 ${Math.round((route.distance-state.routes[0].distance)/state.baseSpeed/60)}분 더` : ''}${index === state.selectedRoute ? ' · 선택됨' : ' · 눌러서 보기'}`;
     lighting.textContent = state.lampResults ? `경로 20m 이내 등록 가로등 ${state.lampResults[index].length}개 · 실제 밝기 아님` : '가로등 정보 미조회';
     button.append(title,detail,lighting);button.addEventListener('click',()=>{state.selectedRoute=index;state.route=route;draw();fitMap();render();});$('route-options').append(button);
   });
@@ -523,6 +524,20 @@ function render() {
     else if (e.seconds === null) arrival = '조금 걸어 주세요. 내 속도를 측정 중이에요';
     else arrival = `${formatTime(now + e.seconds * 1000)} 도착 예상${state.tracking || state.demo ? '' : ' · 설정 속도 기준'}`;
   }
+  const navigation = $('walking-navigation');
+  navigation.classList.toggle('hidden',!state.route || state.demo);
+  let guidance = '내 위치로 걷기를 시작하면 다음 방향을 안내해요.';
+  if (state.tracking) {
+    if (document.hidden || e.stale) guidance = 'GPS 갱신 대기 · 화면을 켜고 위치를 확인해 주세요.';
+    else if (e.unreliable) guidance = '위치 정확도가 낮아 방향 안내를 보류해요.';
+    else if (e.offRoute) guidance = '경로 이탈 · 멈춰서 위치를 확인한 뒤 도보 경로 다시 찾기를 눌러 주세요.';
+    else if (e.arrived) guidance = '목적지 부근이에요. 실제 입구를 확인해 주세요.';
+    else {
+      const next = nextManeuver(state.route,e.progress);
+      guidance = next ? `${next.meters < 15 ? '이 부근에서' : `약 ${shortDistance(next.meters)} 후`} ${next.instruction}${next.name ? ` · ${next.name}` : ''}` : '다음 방향 정보가 없어요. 지도와 현장 표지를 확인해 주세요.';
+    }
+  }
+  $('navigation-direction').textContent = guidance;
   $('eta-arrival').textContent = arrival; $('estimate-note').textContent = note;
   const result = $('bus-result'); result.classList.toggle('hidden',!state.busArrival);
   if (state.busArrival) {

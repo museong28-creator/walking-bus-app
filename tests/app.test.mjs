@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {setImmediate as flushAsync} from 'node:timers/promises';
 import vm from 'node:vm';
+import {nextManeuver} from '../src/navigation.js';
 import * as core from '../src/core.js';
 import {createMapAPI} from '../src/map-adapter.js';
 import {SERVICES} from '../src/services.js';
@@ -83,7 +84,7 @@ function harness(options = {}) {
     polyline: layer, marker: layer, divIcon: value => value, latLngBounds: value => value};
   class ClockDate extends Date { static now() { return now; } }
   const context = vm.createContext({
-    ...core, SERVICES, createMapAPI, KAKAO_JAVASCRIPT_KEY:'', document, window, navigator, L, Date: ClockDate, Intl, AbortController, console,
+    ...core, nextManeuver, SERVICES, createMapAPI, KAKAO_JAVASCRIPT_KEY:'', document, window, navigator, L, Date: ClockDate, Intl, AbortController, console,
     setInterval: callback => { intervals.push(callback); return intervals.length; },
     getWalkingRoute: async () => {throw new Error('Unexpected network request');},
     getWalkingRoutes: options.getWalkingRoutes || (async () => {throw new Error('Unexpected network request');}),
@@ -564,4 +565,11 @@ test('new destination invalidates in-flight lighting results',async()=>{
  const q=h.element('lamp-button').emit('click');await h.element('consent-allow').emit('click');await flushAsync();
  h.app.setDestination([37.562,126.98],'New');resolve([[{id:1,point:a}]]);await q;
  assert.equal(h.app.state.lampResults,null);assert.equal(h.app.state.lampBusy,false);await h.element('consent-cancel').emit('click');
+});
+
+test('navigation requires live GPS and suppresses stale directions',()=>{
+ const h=harness(); addRoute(h); h.app.state.route.steps=[{at:70,type:'turn',modifier:'left',name:'길'}];
+ h.app.render(); assert.match(h.element('navigation-direction').textContent,/걷기를 시작/);
+ h.app.startTracking();h.position();h.app.render();assert.match(h.element('navigation-direction').textContent,/왼쪽/);
+ h.advance(16000);h.app.render();assert.match(h.element('navigation-direction').textContent,/GPS 갱신 대기/);
 });

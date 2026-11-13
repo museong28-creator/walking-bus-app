@@ -23,7 +23,7 @@ async function fixture(t, payload, {ok = true, status = 200, implementation} = {
 test('walking service reverses coordinate order and accepts only a validated route', async t => {
   const {getWalkingRoute, calls} = await fixture(t, routePayload());
   assert.deepEqual(await getWalkingRoute(start, end), {
-    points: [start, end], distance: 543.2, source: 'FOSSGIS 도보 경로', snapDistance: 4,
+    steps: [], points: [start, end], distance: 543.2, source: 'FOSSGIS 도보 경로', snapDistance: 4,
   });
   assert.match(calls[0].url, /126\.978000,37\.566500;126\.981000,37\.570000/);
   assert.match(calls[0].url, /routed-foot\/route\/v1\/foot\//);
@@ -246,4 +246,14 @@ test('lighting refuses large areas and partial overpass replies',async t=>{
  const {getRouteLamps,calls}=await fixture(t,{elements:[],remark:'runtime timeout'});
  await assert.rejects(getRouteLamps([{points:[[37,127],[38,128]],distance:100000}]),/5km/);assert.equal(calls.length,0);
  await assert.rejects(getRouteLamps([{points:[start,end],distance:500}]),/완전하게/);
+});
+
+test('walking maneuver steps preserve provider offsets and request steps',async t=>{
+ const payload=routePayload(); payload.routes[0].legs=[{steps:[{distance:100,maneuver:{type:'depart',location:[126.978,37.5665]}},{distance:443.2,name:'길',maneuver:{type:'turn',modifier:'left',location:[126.979,37.567]}},{distance:0,maneuver:{type:'arrive',location:[126.981,37.57]}}]}];
+ const {getWalkingRoute,calls}=await fixture(t,payload);const route=await getWalkingRoute(start,end);
+ assert.equal(route.steps[1].at,100);assert.equal(route.steps[2].at,543.2);assert.match(calls[0].url,/steps=true/);
+});
+test('incomplete maneuver lengths are discarded without discarding map route',async t=>{
+ const payload=routePayload();payload.routes[0].legs=[{steps:[{distance:1,maneuver:{type:'depart',location:[126.978,37.5665]}}]}];
+ const {getWalkingRoute}=await fixture(t,payload);assert.deepEqual((await getWalkingRoute(start,end)).steps,[]);
 });
