@@ -103,3 +103,9 @@
   .pace-app .eta-card{padding:20px 16px}.pace-app .metrics{gap:5px}
   .pace-app .split-fields{grid-template-columns:1fr}
 }
+
+/* Explicit map consent and routing state, rather than empty placeholders. */
+.pace-app .route-primary{width:100%;min-height:48px;margin:0 0 16px;white-space:normal}
+.pace-app .route-availability{font-size:12px;line-height:1.7;color:var(--muted,#a5b4c2);margin:12px 0}
+.onboarding .ob-map-toggle{width:100%;margin:0 0 16px;white-space:normal;line-height:1.5}
+.onboarding #onboarding-map-status{margin:0 0 12px}
