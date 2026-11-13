@@ -12,7 +12,7 @@
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="assets/vendor/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=pace-18">
+  <link rel="stylesheet" href="styles.css?v=pace-19">
   <title>몇분 걸음 · 나의 속도로 도착하기</title>
 </head>
 <body class="pace-app onboarding">
@@ -89,6 +89,11 @@
         <h4>가로등 등록 정보 · 밝기 미확인</h4><p class="microcopy">실제 밝기 자료는 없어요. 선택적으로 지도에 등록된 가로등 수만 확인할 수 있어요. 가로등 수로 밝거나 안전한 길을 추천하지 않아요.</p>
         <button id="lamp-button" class="secondary wide" disabled>등록 가로등 비교하기</button>
         <p id="lamp-status" class="microcopy" role="status"></p>
+      </section>
+      <section id="walking-navigation" class="navigation-card hidden" aria-label="도보 길 안내">
+        <strong>도보 길 안내 · 베타</strong>
+        <p id="navigation-direction" aria-live="polite"></p>
+        <small>경로 기준 방향이며 휴대폰이 향한 방향이 아니에요. GPS 오차·겹치는 길에서는 잘못 안내될 수 있어요. 횡단보도와 현장 표지를 우선 확인하세요. 음성·백그라운드 안내와 자동 재탐색은 지원하지 않아요. iPhone은 화면을 켜 두세요.</small>
       </section>
       <p class="estimate-note" id="estimate-note">실제 도보 경로를 찾기 전에는 도착 시간을 표시하지 않아요.</p>
 
@@ -175,7 +180,7 @@
 <div class="account-actions"><button id="account-check" class="primary" hidden>서버 보호 연결 확인</button><button id="account-prepare" class="primary">동의하고 로그인 준비</button><button id="account-login" class="primary" hidden>Google 계정 선택</button><button id="account-logout" class="secondary" hidden>로그아웃</button><button id="account-close" class="secondary">닫기</button></div>
   </div></dialog>
   <script src="assets/vendor/leaflet.js"></script>
-  <script type="module" src="src/app.js?v=pace-18"></script>
+  <script type="module" src="src/app.js?v=pace-19"></script>
 </body>
 </html>
 

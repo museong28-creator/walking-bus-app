@@ -37,7 +37,7 @@ export async function getWalkingRoutes(start, end, signal) {
   if (!isCoordinate(start) || !isCoordinate(end)) throw new Error('올바른 출발지와 목적지가 필요해요.');
   const coordinates = [start, end].map(([lat, lon]) => `${lon.toFixed(6)},${lat.toFixed(6)}`).join(';');
   // FOSSGIS routed-foot is a separately prepared walking profile, not driving.
-  const url = `${SERVICES.walking}${coordinates}?overview=full&geometries=geojson&steps=false&alternatives=true`;
+  const url = `${SERVICES.walking}${coordinates}?overview=full&geometries=geojson&steps=true&alternatives=true`;
   const data = await getJson(url, signal);
   if (data?.code !== 'Ok' || !Array.isArray(data.routes)) throw new Error('이 목적지까지의 도보 경로를 찾지 못했어요.');
   const waypoints = Array.isArray(data.waypoints) ? data.waypoints : [];
@@ -50,7 +50,19 @@ export async function getWalkingRoutes(start, end, signal) {
     const points = Array.isArray(geometry) ? geometry.map(point => Array.isArray(point) ? [point[1],point[0]] : null) : null;
     if (!points || points.length < 2 || !points.every(isCoordinate) || !Number.isFinite(route.distance) || route.distance <= 0) continue;
     const key = JSON.stringify(points); if (seen.has(key)) continue; seen.add(key);
-    routes.push({points, distance: route.distance, source: 'FOSSGIS 도보 경로', snapDistance});
+    let along = 0;
+    const rawSteps = route.legs?.flatMap(leg => Array.isArray(leg.steps) ? leg.steps : []) || [];
+    const steps = [];
+    for (const step of rawSteps) {
+      if (!Number.isFinite(step.distance) || step.distance < 0) { steps.length = 0; break; }
+      const m = step.maneuver;
+      if (!m || !isCoordinate([m.location?.[1],m.location?.[0]])) { steps.length = 0; break; }
+      steps.push({at:along,type:String(m.type || ''),modifier:String(m.modifier || ''),name:String(step.name || '').slice(0,120)});
+      along += step.distance;
+    }
+    // Do not use incomplete maneuver distances for navigation.
+    if (Math.abs(along-route.distance) > Math.max(20,route.distance*.02)) steps.length=0;
+    routes.push({steps, points, distance: route.distance, source: 'FOSSGIS 도보 경로', snapDistance});
   }
   if (!routes.length) throw new Error('이 목적지까지의 도보 경로를 찾지 못했어요.');
   return routes;
