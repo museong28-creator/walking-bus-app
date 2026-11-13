@@ -2,7 +2,7 @@ import {initAccountUI} from './account-ui.js?v=auth-11';
 import {DEFAULT_SPEED, SpeedTracker, distance, pathDistance, projectOnRoute, etaSeconds, catchStatus, parseCoordinates} from './core.js';
 import {SERVICES, getWalkingRoute, searchPlaces, getNearbyStops} from './services.js';
 import {initMeetupUI} from './meetup-ui.js';
-import {createMapAPI} from './map-adapter.js?v=stitch-7';
+import {createMapAPI} from './map-adapter.js?v=pace-16';
 import {KAKAO_JAVASCRIPT_KEY} from './map-config.js';
 
 const mapAPI = createMapAPI({key:KAKAO_JAVASCRIPT_KEY,leaflet:L});
@@ -381,7 +381,21 @@ async function findRoute() {
 }
 $('route-button').addEventListener('click', findRoute);
 
-$('stops-button').addEventListener('click', async () => {
+let selectedStop = null;
+function showStop(stop) {
+  selectedStop = stop;
+  $('stop-name').textContent = stop.name;
+  $('stop-detail').textContent = `OpenStreetMap 정류장 · 지도 데이터 ID ${stop.id} · 직선 ${shortDistance(stop.distance)}`;
+  $('stop-dialog').showModal();
+}
+$('stop-close').addEventListener('click', () => { $('stop-dialog').close(); selectedStop = null; });
+$('stop-dialog').addEventListener('cancel', () => { selectedStop = null; });
+$('stop-walk').addEventListener('click', () => {
+  const stop = selectedStop; if (!stop) return;
+  $('stop-dialog').close(); selectedStop = null;
+  setDestination(stop.point, stop.name, 'OSM 버스 정류장'); fitMap();
+});
+async function findStops() {
   if (state.demo) { notice('체험 중에는 가상 위치를 외부로 보내지 않아요. 체험을 종료하고 출발지를 정해 주세요.'); return; }
   if (!state.position) { notice('주변 정류장을 찾으려면 먼저 내 위치를 확인하거나 출발지를 정해 주세요.'); return; }
   if (state.stopBusy) return;
@@ -395,17 +409,19 @@ $('stops-button').addEventListener('click', async () => {
     if (epoch !== state.requestEpoch || controller.signal.aborted) return;
     $('stop-results').replaceChildren(); stopLayer.clearLayers();
     for (const stop of stops) {
-      const choose = () => { setDestination(stop.point,stop.name,'OSM 버스 정류장'); fitMap(); };
+      const choose = () => showStop(stop);
       const button = document.createElement('button'), name = document.createElement('span'), meters = document.createElement('small');
       name.textContent = stop.name; meters.textContent = `직선 ${shortDistance(stop.distance)}`;
       button.append(name,meters); button.addEventListener('click',choose); $('stop-results').append(button);
       marker(stop.point,'stop',stop.name).on('click',choose).addTo(stopLayer);
     }
     $('stop-results').classList.toggle('hidden',stops.length === 0);
-    notice(stops.length ? '정류장을 누르면 목적지가 돼요. 같은 이름이어도 방향이 다를 수 있으니 탑승 방향을 확인해 주세요.' : '700m 안에서 등록된 정류장을 찾지 못했어요. 정류장이 있어도 데이터에 누락될 수 있어요.');
+    notice(stops.length ? '지도나 목록에서 정류장을 누르면 정보를 볼 수 있어요. 실제 버스 위치·도착 시간은 아직 연결되지 않았어요. 같은 이름이어도 방향이 다를 수 있으니 탑승 방향을 확인해 주세요.' : '700m 안에서 등록된 정류장을 찾지 못했어요. 정류장이 있어도 데이터에 누락될 수 있어요.');
   } catch (error) { if (!controller.signal.aborted) notice(`정류장을 불러오지 못했어요. ${error.message}`); }
   finally { if (controller === stopController) { state.stopBusy = false; render(); } }
-});
+}
+$('stops-button').addEventListener('click', findStops);
+$('map-stops').addEventListener('click', () => { $('bus-tools').open = true; return findStops(); });
 
 $('bus-form').addEventListener('submit', event => {
   event.preventDefault();
@@ -440,6 +456,8 @@ function render() {
   $('route-button').disabled = !state.position || !state.destination || state.routeBusy || state.demo;
   $('route-button').textContent = state.routeBusy ? '경로 찾는 중…' : state.route ? '도보 경로 다시 찾기' : '경로와 도착 시간 계산하기';
   $('stops-button').disabled = state.stopBusy;
+  $('map-stops').disabled = state.stopBusy;
+  $('map-stops').textContent = state.stopBusy ? '조회 중…' : '▣ 정류장';
   $('stops-button').textContent = state.stopBusy ? '정류장 찾는 중…' : '주변 700m 정류장 찾기 ↗';
   const speedValid = Number.isFinite(e.speed) && !e.stale && !e.unreliable;
   $('walking-speed').textContent = speedValid ? `${(e.speed * 3.6).toFixed(1)} km/h` : '--';

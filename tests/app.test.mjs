@@ -87,7 +87,7 @@ function harness(options = {}) {
     setInterval: callback => { intervals.push(callback); return intervals.length; },
     getWalkingRoute: async () => {throw new Error('Unexpected network request');},
     searchPlaces: async () => {throw new Error('Unexpected network request');},
-    getNearbyStops: async () => {throw new Error('Unexpected network request');},
+    getNearbyStops: options.getNearbyStops || (async () => {throw new Error('Unexpected network request');}),
     initAccountUI: () => ({}),
     initMeetupUI: () => ({refresh() {},pauseSharing() {},destinationChanged() {},useBusTime(timestamp) {busTargets.push(timestamp);}}),
   });
@@ -506,4 +506,20 @@ test('new destination closes outdated consent; route errors do not look like spe
   assert.equal(h.app.state.routeBusy,false);
   assert.match(h.element('notice').textContent,/불러오지 못/);
   assert.match(h.element('tracking-tag').innerHTML,/경로 필요/);
+});
+
+
+test('real stop results open a clearly unconnected information panel before route selection',async()=>{
+  const h=harness({getNearbyStops:async()=>[{id:123,name:'Test stop',point:[37.57,126.98]}]});
+  await h.element('onboarding-skip').emit('click');h.app.state.position=[37.56,126.97];
+  const request=h.element('map-stops').emit('click');
+  assert.equal(h.element('consent-dialog').open,true);await h.element('consent-allow').emit('click');await request;
+  assert.equal(h.element('stop-results').children.length,1);
+  await h.element('stop-results').children[0].emit('click');
+  assert.equal(h.element('stop-dialog').open,true);assert.equal(h.app.state.destination,null);
+  assert.equal(h.element('stop-name').textContent,'Test stop');
+  await h.element('stop-close').emit('click');assert.equal(h.element('stop-dialog').open,false);
+  await h.element('stop-results').children[0].emit('click');await h.element('stop-walk').emit('click');
+  assert.equal(h.element('stop-dialog').open,false);assert.equal(h.app.state.destination.name,'Test stop');
+  assert.equal(h.element('consent-dialog').open,true);await h.element('consent-cancel').emit('click');
 });

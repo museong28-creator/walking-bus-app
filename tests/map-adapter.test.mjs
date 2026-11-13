@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import {createMapAPI} from '../src/map-adapter.js';
 function fake() {
   const scripts=[],maps=[],overlays=[],elements=new globalThis.Map();
-  const element=()=>({style:{},setAttribute(){},addEventListener(){},replaceChildren(){this.cleared=true;},remove(){this.removed=true;}});
+  const element=()=>({style:{},setAttribute(){},addEventListener(type,fn){(this.events ||= {})[type]=fn;},replaceChildren(){this.cleared=true;},remove(){this.removed=true;}});
   const document={createElement:element,getElementById(id){if(!elements.has(id))elements.set(id,element());return elements.get(id);},head:{append(script){scripts.push(script);}}};
   class LatLng{constructor(lat,lng){this.lat=lat;this.lng=lng;}getLat(){return this.lat;}getLng(){return this.lng;}}
   class Map{constructor(element,{center,level}){this.center=center;this.level=level;this.events={};maps.push(this);}setCenter(p){this.center=p;}getCenter(){return this.center;}setLevel(l){this.level=l;}getLevel(){return this.level;}addControl(){}relayout(){}setBounds(b){this.center=b.points[0];}}
-  class Overlay{constructor(options){this.map=options.map;overlays.push(this);}setMap(map){this.map=map;}}
-  const k={load:cb=>cb(),Map,LatLng,LatLngBounds:class {points=[];extend(p){this.points.push(p);}},Polyline:Overlay,CustomOverlay:Overlay,ZoomControl:class{},ControlPosition:{RIGHT:1},event:{addListener(map,event,fn){map.events[event]=fn;},removeListener(map,event){delete map.events[event];}}};
+  class Overlay{constructor(options){this.map=options.map;this.content=options.content;overlays.push(this);}setMap(map){this.map=map;}}
+  const k={load:cb=>cb(),Map,LatLng,LatLngBounds:class {points=[];extend(p){this.points.push(p);}},Polyline:Overlay,CustomOverlay:Overlay,ZoomControl:class{},ControlPosition:{RIGHT:1},event:{preventMap(){},addListener(map,event,fn){map.events[event]=fn;},removeListener(map,event){delete map.events[event];}}};
   return {document,scripts,maps,overlays,window:{kakao:{maps:k}}};
 }
 test('blank public key uses existing Leaflet without any SDK requests',()=>{const leaflet={};assert.equal(createMapAPI({leaflet}),leaflet);});
@@ -46,4 +46,11 @@ test('Kakao search empty, failed and cancelled requests settle without stale res
   const empty=api.searchPlaces('없는장소');await Promise.resolve();cb([],'ZERO_RESULT');assert.deepEqual(await empty,[]);
   const failed=api.searchPlaces('서울역');await Promise.resolve();cb(null,'ERROR');await assert.rejects(failed,/사용 권한/);
   await assert.rejects(api.searchPlaces('a'),/2~180/);
+});
+
+test('Kakao stop marker dispatches selection without throwing or selecting the underlying map',async()=>{
+  const f=fake(),api=createMapAPI({key:'public-key',...f}),map=api.map('map'),group=api.layerGroup().addTo(map);
+  let calls=0,stopped=false;api.marker([37,127],{icon:{className:'stop',html:'<div>▣</div>'},alt:'Test stop'}).on('click',()=>calls++).addTo(group);
+  const p=map.enable();f.scripts[0].onload();await p;
+  f.overlays[0].content.events.click({stopPropagation(){stopped=true;}});assert.equal(calls,1);assert.equal(stopped,true);
 });
