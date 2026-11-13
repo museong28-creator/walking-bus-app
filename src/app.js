@@ -376,7 +376,7 @@ async function findRoute() {
     notice(route.snapDistance > 20 ? `선택한 지점과 보행로 사이에 최대 ${Math.round(route.snapDistance)}m 차이가 있어요. 연결 구간과 실제 출입구를 확인해 주세요.` : '');
     draw(); fitMap();
   } catch (error) {
-    if (!controller.signal.aborted) { state.route = null; draw(); notice(`도보 경로를 불러오지 못했어요. ${error.message} 점선은 직선거리일 뿐, 도보 경로나 ETA가 아니에요.`); }
+    if (!controller.signal.aborted) { state.route = null; draw(); notice(`도보 경로를 불러오지 못했어요. ${error.name === 'AbortError' ? '경로 서비스 응답 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.' : error.message} 점선은 직선거리일 뿐, 도보 경로나 ETA가 아니에요.`); }
   } finally { if (controller === routeController) { state.routeBusy = false; render(); } }
 }
 $('route-button').addEventListener('click', findRoute);
@@ -417,7 +417,7 @@ async function findStops() {
     }
     $('stop-results').classList.toggle('hidden',stops.length === 0);
     notice(stops.length ? '지도나 목록에서 정류장을 누르면 정보를 볼 수 있어요. 실제 버스 위치·도착 시간은 아직 연결되지 않았어요. 같은 이름이어도 방향이 다를 수 있으니 탑승 방향을 확인해 주세요.' : '700m 안에서 등록된 정류장을 찾지 못했어요. 정류장이 있어도 데이터에 누락될 수 있어요.');
-  } catch (error) { if (!controller.signal.aborted) notice(`정류장을 불러오지 못했어요. ${error.message}`); }
+  } catch (error) { if (!controller.signal.aborted) notice(`정류장을 불러오지 못했어요. ${error.name === 'AbortError' ? '정류장 서비스 응답 시간이 초과됐어요. 잠시 후 다시 눌러 주세요. 정류장이 없다는 뜻은 아니에요.' : error.message}`); }
   finally { if (controller === stopController) { state.stopBusy = false; render(); } }
 }
 $('stops-button').addEventListener('click', findStops);
