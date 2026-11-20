@@ -265,8 +265,17 @@ $('set-destination').addEventListener('click', () => {
 });
 $('fit-map').addEventListener('click', fitMap);
 
+let searchComposing = false;
+$('search-input').addEventListener('compositionstart', () => { searchComposing = true; });
+$('search-input').addEventListener('compositionend', () => { searchComposing = false; });
+$('search-input').addEventListener('keydown', event => {
+  // Enter used to finish a Korean syllable must not submit an unfinished query.
+  if (event.key === 'Enter' && (event.isComposing || searchComposing || event.keyCode === 229)) event.preventDefault();
+});
 $('search-form').addEventListener('submit', async event => {
-  event.preventDefault(); const query = $('search-input').value.trim();
+  event.preventDefault();
+  if (searchComposing || event.isComposing) return;
+  const query = $('search-input').value.trim().normalize('NFC');
   if (!query) return;
   if (state.demo) exitDemo();
   const coordinates = parseCoordinates(query);
@@ -374,6 +383,54 @@ $('gps-button').addEventListener('click', () => {
   if (state.tracking) { stopTracking(); notice('측정을 멈췄어요. 현재 위치는 마지막 측정 지점이며, ETA는 설정 속도 기준이에요.'); render(); }
   else startTracking();
 });
+let locateEpoch = 0, locating = false, locateTimer;
+function locationStatus(message) {
+  $('map-location-status').textContent = message;
+  $('map-location-status').classList.toggle('hidden', !message);
+}
+function finishLocate(message = '') {
+  locating = false; clearTimeout(locateTimer);
+  $('locate-me').disabled = false; $('locate-me').textContent = '◎ 내 위치';
+  locationStatus(message);
+}
+function cancelLocate() { locateEpoch++; finishLocate(); }
+$('locate-me').addEventListener('click', async () => {
+  if (locating) return;
+  if (state.demo) exitDemo();
+  if (!window.isSecureContext || !navigator.geolocation) { locationStatus('위치 확인을 지원하는 브라우저의 HTTPS 페이지에서 열어 주세요.'); return; }
+  if (!state.mapEnabled) {
+    if (!(await askConsent('내 위치를 지도에서 보기', `위치 권한을 요청하고 ${mapProvider} 지도에 현재 위치를 표시해요. 지도 서버에는 표시 지역과 IP가 전달돼요. 이동 기록은 저장하지 않아요.`))) return;
+    enableMap();
+  }
+  setPickingStart(false);
+  // A manually picked start is never presented as the current GPS position.
+  if (state.tracking && state.lastGoodFix && Date.now()-state.lastGoodFix <= 15000 && !state.gpsIssue && !['inaccurate','jump','too-fast'].includes(tracker.status)) {
+    map.setView(state.position,17); locationStatus('현재 GPS 위치로 이동했어요.'); return;
+  }
+  locating = true; const epoch = ++locateEpoch;
+  $('locate-me').disabled = true; $('locate-me').textContent = '위치 확인 중';
+  locationStatus('현재 위치를 확인하고 있어요. 위치 권한을 허용해 주세요.');
+  locateTimer = setTimeout(() => { if (epoch === locateEpoch) { locateEpoch++; finishLocate('위치 확인 시간이 초과됐어요. 실외에서 위치 권한과 정확한 위치 설정을 확인한 뒤 다시 눌러 주세요.'); } },20000);
+  try {
+    navigator.geolocation.getCurrentPosition(position => {
+      if (epoch !== locateEpoch) return;
+      const c = position.coords, point = [c.latitude,c.longitude];
+      if (!point.every(Number.isFinite) || Math.abs(point[0])>90 || Math.abs(point[1])>180 || !Number.isFinite(c.accuracy) || c.accuracy<0 || c.accuracy>40 || Date.now()-position.timestamp>15000 || position.timestamp>Date.now()+5000) {
+        finishLocate('정확한 현재 위치를 확인하지 못했어요. 실외에서 다시 눌러 주세요.'); return;
+      }
+      // Preserve a running speed tracker and its freshest accepted location.
+      if (!state.tracking) { state.position=point; state.start=point; state.lastGoodFix=position.timestamp; state.gpsIssue=''; draw(); render(); }
+      map.setView(point,17);
+      $('map-caption').textContent = `GPS로 확인한 위치 / 오차 약 ${Math.round(c.accuracy)}m`;
+      finishLocate(`현재 위치로 이동했어요. 오차 약 ${Math.round(c.accuracy)}m예요.`);
+    },error => {
+      if (epoch !== locateEpoch) return;
+      finishLocate(error.code===1 ? '위치 권한이 꺼져 있어요. Safari의 웹사이트 위치 권한을 허용한 뒤 다시 눌러 주세요.' : '현재 위치를 확인하지 못했어요. 실외에서 다시 눌러 주세요.');
+    },{enableHighAccuracy:true,maximumAge:0,timeout:18000});
+  } catch { finishLocate('위치 확인을 시작하지 못했어요. 브라우저 위치 설정을 확인해 주세요.'); }
+});
+window.addEventListener('pagehide', cancelLocate);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible' && locating) cancelLocate(); });
 // Do not silently turn a lost live GPS session into a saved-pace estimate.
 function checkGpsWait(now) {
   if (!state.tracking) return;

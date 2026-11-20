@@ -66,11 +66,12 @@ function harness(options = {}) {
   };
   const window = Object.assign(new FakeTarget(), {isSecureContext: options.secure ?? true, localStorage});
   if(options.storageAccessError) Object.defineProperty(window,'localStorage',{get(){throw new Error('SecurityError');}});
-  const watches = [], cleared = [], intervals = [], busTargets = [];
+  const watches = [], cleared = [], intervals = [], busTargets = [], locations = [], centers = [], timers = new Map();
   const navigator = {
     geolocation: {
       watchPosition(success, failure, settings) { watches.push({success, failure, settings}); return watches.length; },
       clearWatch(id) { cleared.push(id); },
+      getCurrentPosition(success,failure,settings) { locations.push({success,failure,settings}); },
     },
   };
   if (options.wakeLock) navigator.wakeLock = options.wakeLock;
@@ -79,13 +80,14 @@ function harness(options = {}) {
     addTo() { return this; }, remove() {}, clearLayers() {}, on() { return this; }, bindPopup() { return this; },
   });
   const mapEvents = new Map();
-  const map = {...layer(), on(type, callback) { mapEvents.set(type,callback); return this; }, setView() { return this; }, fitBounds() { return this; }};
+  const map = {...layer(), on(type, callback) { mapEvents.set(type,callback); return this; }, setView(point) { centers.push(point); return this; }, fitBounds() { return this; }};
   const L = {map: () => map, control: {zoom: () => layer()}, tileLayer: layer, layerGroup: layer,
     polyline: layer, marker: layer, divIcon: value => value, latLngBounds: value => value};
   class ClockDate extends Date { static now() { return now; } }
   const context = vm.createContext({
     ...core, nextManeuver, SERVICES, createMapAPI, KAKAO_JAVASCRIPT_KEY:'', document, window, navigator, L, Date: ClockDate, Intl, AbortController, console,
     setInterval: callback => { intervals.push(callback); return intervals.length; },
+    setTimeout: callback => { const id=Symbol();timers.set(id,callback);return id; }, clearTimeout:id=>timers.delete(id),
     getWalkingRoute: async () => {throw new Error('Unexpected network request');},
     getWalkingRoutes: options.getWalkingRoutes || (async () => {throw new Error('Unexpected network request');}),
     getRouteLamps: options.getRouteLamps || (async () => {throw new Error('Unexpected network request');}),
@@ -96,7 +98,8 @@ function harness(options = {}) {
   });
   vm.runInContext(appSource, context, {filename: 'src/app.js'});
   return {
-    app: context.appTest, element, document, window, navigator, watches, cleared, busTargets, storage,
+    app: context.appTest, element, document, window, navigator, watches, cleared, busTargets, storage, locations, centers,
+    timeout() { for (const callback of [...timers.values()]) callback(); timers.clear(); },
     mapClick(lat,lng) { mapEvents.get('click')({latlng:{lat,lng}}); },
     get now() { return now; }, advance: milliseconds => { now += milliseconds; },
     tick() { for (const callback of intervals) callback(); },
@@ -630,4 +633,34 @@ test('unverified endpoint gaps are never added as walking distance or ETA',async
  assert.equal(h.app.state.route.distance,120);assert.equal(h.app.state.route.points.length,2);
  assert.equal(h.app.estimate(h.now).seconds,null);assert.equal(h.element('eta-minutes').textContent,'--');
  assert.match(h.element('route-options').children[0].children[0].textContent,/끝점 확인 필요/);
+});
+
+test('Korean composition never submits a partial query and final Korean text is preserved',async()=>{
+ const h=harness();h.element('search-input').value='대구대 정문1';
+ await h.element('search-input').emit('compositionstart');await h.element('search-form').emit('submit');
+ assert.equal(h.element('consent-dialog').open,false);
+ await h.element('search-input').emit('compositionend');const pending=h.element('search-form').emit('submit');
+ assert.match(h.element('consent-copy').textContent,/대구대 정문1/);
+ await h.element('consent-cancel').emit('click');await pending;
+});
+
+test('current-location button centers fresh GPS without resetting live speed or destination',async()=>{
+ const h=harness();await h.element('enable-map').emit('click');h.app.startTracking();h.position({latitude:37.56,longitude:126.97});
+ h.app.setDestination([37.57,126.98],'Destination');const speed=h.app.tracker.current;
+ await h.element('locate-me').emit('click');
+ assert.equal(h.locations.length,0);assert.deepEqual([...h.centers.at(-1)],[37.56,126.97]);
+ assert.equal(h.app.tracker.current,speed);assert.equal(h.app.state.tracking,true);assert.equal(h.app.state.destination.name,'Destination');
+});
+
+test('one-shot current location rejects poor fixes, times out, and does not pretend a manual start is GPS',async()=>{
+ const h=harness();await h.element('enable-map').emit('click');h.app.state.position=[1,1];
+ await h.element('locate-me').emit('click');assert.equal(h.locations.length,1);
+ h.locations[0].success({timestamp:h.now,coords:{latitude:37.56,longitude:126.97,accuracy:150}});
+ assert.deepEqual([...h.app.state.position],[1,1]);assert.match(h.element('map-location-status').textContent,/정확한/);
+ await h.element('locate-me').emit('click');h.timeout();
+ assert.equal(h.element('locate-me').disabled,false);assert.match(h.element('map-location-status').textContent,/초과/);
+ h.locations[1].success({timestamp:h.now,coords:{latitude:37.56,longitude:126.97,accuracy:5}});
+ assert.deepEqual([...h.app.state.position],[1,1]);
+ await h.element('locate-me').emit('click');h.locations[2].success({timestamp:h.now,coords:{latitude:37.56,longitude:126.97,accuracy:5}});
+ assert.deepEqual([...h.app.state.position],[37.56,126.97]);assert.equal(h.app.state.tracking,false);
 });
