@@ -11,7 +11,7 @@ import {SERVICES} from '../src/services.js';
 // Run the actual application source with its external browser surfaces replaced.
 // This tests event/state integration, not CSS layout, Leaflet rendering, or Safari APIs.
 const appSource = (await readFile(new URL('../src/app.js', import.meta.url), 'utf8'))
-  .replace(/^import .*;\n/gm, '')
+  .replace(/^import .*;\r?\n/gm, '')
   + '\n;globalThis.appTest = {state, tracker, startTracking, stopTracking, setDestination, estimate, render, startDemo, exitDemo};';
 
 class FakeTarget {
@@ -263,7 +263,7 @@ test('manual bus countdown uses the entered absolute time and is marked as non-l
   const arrival = h.now + 720_000;
   assert.equal(h.app.state.busArrival, arrival);
   assert.deepEqual(h.busTargets, [arrival], 'the meeting plan receives the actual manual bus timestamp');
-  assert.match(h.element('bus-result').children[0].textContent, /직접 입력 · 실시간 아님.*12분 후/);
+  assert.match(h.element('bus-result').children[0].textContent, /직접 입력 \/ 실시간 아님.*12분 후/);
   h.advance(60_000); h.tick();
   assert.equal(h.app.state.busArrival, arrival);
   assert.match(h.element('bus-result').children[0].textContent, /11분 후/);
@@ -289,12 +289,12 @@ test('onboarding never requests GPS until the user starts and a single fix canno
   assert.match(h.element('onboarding-feedback').textContent,/권한/);
   h.position(); assert.equal(h.element('onboarding-finish').disabled,true);
 });
-test('onboarding calibrates from real moving samples then applies and stops GPS', async () => {
+test('onboarding calibrates from real moving samples then applies and keeps live GPS for the journey', async () => {
   const h=harness();await h.element('onboarding-start').emit('click');
   for(let i=0;i<7;i++){h.position({latitude:i*.000055,speed:1.2});if(i<6)h.advance(5000);}
   assert.equal(h.element('onboarding-finish').disabled,false);
   await h.element('onboarding-finish').emit('click');
-  assert.equal(h.app.state.tracking,false);assert.equal(h.app.state.baseSpeed,1.2);
+  assert.equal(h.app.state.tracking,true);assert.equal(h.app.state.baseSpeed,1.2);
   assert.equal(h.element('onboarding-speed').textContent,'4.3');
   assert.match(h.element('notice').textContent,/측정 완료/);
   assert.equal(h.document.body.classList.contains('onboarding'),false);
@@ -396,7 +396,7 @@ async function finishCalibration(h, speed=1.2) {
 test('calibrated speed is persisted without coordinates and restored without GPS or map consent', async()=>{
   const h=harness(); await finishCalibration(h);
   const profile=JSON.parse(h.storage.get(PACE_KEY));
-  assert.deepEqual(Object.keys(profile).sort(),['measuredAt','speed','version']);
+  assert.deepEqual(Object.keys(profile).sort(),['measuredAt','origin','speed','version']);
   assert.equal(profile.version,1);assert.equal(profile.speed,1.2);assert.equal(profile.measuredAt,h.now);
   const restored=harness({storage:h.storage});
   assert.equal(restored.app.state.baseSpeed,1.2);
@@ -556,7 +556,7 @@ test('lamp queries require consent and never call an empty result a dark road',a
  let q=h.element('lamp-button').emit('click');assert.equal(calls,0);await h.element('consent-cancel').emit('click');await q;
  assert.equal(calls,0);q=h.element('lamp-button').emit('click');await h.element('consent-allow').emit('click');await q;
  assert.equal(calls,1);assert.match(h.element('lamp-status').textContent,/어두운 길이라는 뜻은 아니/);
- assert.match(h.element('route-options').children[0].children[2].textContent,/0개 · 실제 밝기 아님/);
+ assert.match(h.element('route-options').children[0].children[2].textContent,/0개 \/ 실제 밝기 아님/);
 });
 test('new destination invalidates in-flight lighting results',async()=>{
  const a=[37.56,126.97],b=[37.561,126.97];let resolve;
@@ -572,4 +572,62 @@ test('navigation requires live GPS and suppresses stale directions',()=>{
  h.app.render(); assert.match(h.element('navigation-direction').textContent,/걷기를 시작/);
  h.app.startTracking();h.position();h.app.render();assert.match(h.element('navigation-direction').textContent,/왼쪽/);
  h.advance(16000);h.app.render();assert.match(h.element('navigation-direction').textContent,/GPS 갱신 대기/);
+});
+
+test('location map starts GPS and remains visible when calibration starts or restarts', async()=>{
+ const h=harness();await h.element('onboarding-map').emit('click');h.position();
+ assert.equal(h.app.state.mapEnabled,true);assert.equal(h.watches.length,1);
+ assert.match(h.element('onboarding-status').textContent,/위치 확인 완료/);
+ await h.element('onboarding-start').emit('click');
+ assert.equal(h.element('onboarding-map-view').classList.contains('hidden'),false);
+ await h.element('onboarding-stop').emit('click');await h.element('onboarding-start').emit('click');
+ assert.equal(h.element('onboarding-map-view').classList.contains('hidden'),false);
+});
+
+test('manual pace survives reload and stays labeled as manual',async()=>{
+ const h=harness();h.element('manual-pace').value='3.5';await h.element('manual-pace-form').emit('submit');
+ const restored=harness({storage:h.storage});
+ assert.equal(restored.app.state.speedOrigin,'manual');assert.equal(restored.app.state.baseSpeed,3.5/3.6);
+ assert.equal(restored.watches.length,0);assert.equal(restored.app.state.position,null);
+ restored.element('base-speed').value='4.7';await restored.element('base-speed').emit('input');
+ assert.equal(harness({storage:h.storage}).app.state.baseSpeed,4.7/3.6);
+});
+
+test('silent GPS loss ends waiting, suppresses fallback ETA and offers recovery',async()=>{
+ const h=harness();await finishCalibration(h);addRoute(h);
+ h.advance(26000);h.tick();
+ assert.equal(h.app.state.tracking,false);assert.equal(h.app.estimate(h.now).seconds,null);
+ assert.equal(h.element('gps-recovery').classList.contains('hidden'),false);
+ assert.match(h.element('gps-problem').textContent,/25초/);
+ await h.element('gps-use-saved').emit('click');assert.notEqual(h.app.estimate(h.now).seconds,null);
+ await h.element('gps-retry').emit('click');h.position();assert.equal(h.app.state.gpsIssue,'');
+});
+
+test('persistent poor GPS and insufficient moving samples terminate calibration with next actions',async()=>{
+ const h=harness();await h.element('onboarding-start').emit('click');h.position({accuracy:200});h.advance(26000);h.tick();
+ assert.equal(h.app.state.tracking,false);assert.equal(h.element('onboarding-recovery').classList.contains('hidden'),false);
+ await h.element('onboarding-retry').emit('click');
+ for(let i=0;i<25;i++){h.position({speed:0});h.advance(5000);h.tick();}
+ assert.equal(h.app.state.tracking,false);assert.match(h.element('onboarding-problem').textContent,/보행 표본/);
+ assert.equal(h.element('onboarding-finish').disabled,true);
+});
+
+test('chosen pace flows to a routed destination and recent GPS speed changes ETA',async()=>{
+ const end=[.01,0], h=harness({getWalkingRoutes:async start=>[{points:[start,end],distance:1100,snapDistance:0}]});
+ await finishCalibration(h);h.app.setDestination(end,'Destination');await h.element('consent-allow').emit('click');await flushAsync();
+ const first=h.app.estimate(h.now).seconds;
+ for(let i=1;i<=6;i++){h.advance(5000);h.position({latitude:.00033+i*.00003,speed:.6});}
+ const slower=h.app.estimate(h.now).seconds;assert.ok(slower>first);
+ for(let i=1;i<=6;i++){h.advance(5000);h.position({latitude:.00051+i*.00008,speed:1.8});}
+ assert.ok(h.app.estimate(h.now).seconds<slower);assert.match(h.element('map-tip').textContent,/도보 약/);
+});
+
+test('unverified endpoint gaps are never added as walking distance or ETA',async()=>{
+ const a=[37.56,126.97],b=[37.561,126.97];
+ const h=harness({getWalkingRoutes:async()=>[{points:[a,b],distance:120,snapDistance:35}]});
+ await h.element('onboarding-skip').emit('click');h.app.state.position=a;h.app.setDestination([37.562,126.97],'Unconnected entrance');
+ await h.element('consent-allow').emit('click');await flushAsync();
+ assert.equal(h.app.state.route.distance,120);assert.equal(h.app.state.route.points.length,2);
+ assert.equal(h.app.estimate(h.now).seconds,null);assert.equal(h.element('eta-minutes').textContent,'--');
+ assert.match(h.element('route-options').children[0].children[0].textContent,/끝점 확인 필요/);
 });

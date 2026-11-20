@@ -1,9 +1,9 @@
-import {nextManeuver} from './navigation.js?v=pace-19';
+import {nextManeuver} from './navigation.js?v=pace-20';
 import {initAccountUI} from './account-ui.js?v=auth-11';
-import {DEFAULT_SPEED, SpeedTracker, distance, pathDistance, projectOnRoute, etaSeconds, catchStatus, parseCoordinates} from './core.js';
-import {SERVICES, getWalkingRoute, getWalkingRoutes, getRouteLamps, searchPlaces, getNearbyStops} from './services.js?v=pace-19';
+import {DEFAULT_SPEED, SpeedTracker, distance, pathDistance, projectOnRoute, etaSeconds, catchStatus, parseCoordinates} from './core.js?v=pace-20';
+import {SERVICES, getWalkingRoute, getWalkingRoutes, getRouteLamps, searchPlaces, getNearbyStops} from './services.js?v=pace-20';
 import {initMeetupUI} from './meetup-ui.js';
-import {createMapAPI} from './map-adapter.js?v=pace-16';
+import {createMapAPI} from './map-adapter.js?v=pace-20';
 import {KAKAO_JAVASCRIPT_KEY} from './map-config.js';
 
 const mapAPI = createMapAPI({key:KAKAO_JAVASCRIPT_KEY,leaflet:L});
@@ -12,7 +12,7 @@ const mapProvider = KAKAO_JAVASCRIPT_KEY.trim() ? 'Kakao' : 'OpenStreetMap';
 const $ = id => document.getElementById(id);
 const accountSession=initAccountUI();
 $('map-provider-consent').textContent = `지도를 켜면 화면에 보이는 지역과 IP가 ${mapProvider} 지도 서버에 전달돼요.`;
-$('onboarding-map').textContent = `지도 켜고 내 위치 보기 · ${mapProvider} 연결 동의`; 
+$('onboarding-map').textContent = `지도 켜고 내 위치 확인 / ${mapProvider} 연결 동의`;
 const tracker = new SpeedTracker();
 const calibration = {active:false, done:false, started:0, first:0, values:[], accuracy:null, message:'', lastSample:0};
 // Store only the chosen pace, never coordinates or the recorded GPS samples.
@@ -25,7 +25,7 @@ function readPace() {
 }
 function savePace() {
   try {
-    window.localStorage.setItem(PACE_KEY, JSON.stringify({version:1,speed:state.baseSpeed,measuredAt:Date.now()}));
+    window.localStorage.setItem(PACE_KEY, JSON.stringify({version:1,speed:state.baseSpeed,origin:state.speedOrigin,measuredAt:Date.now()}));
     return true;
   } catch { return false; }
 }
@@ -41,7 +41,7 @@ function renderCalibration() {
   const stoppedReady = ready && !state.tracking;
   $('onboarding-speed').textContent = calibration.done ? (state.baseSpeed * 3.6).toFixed(1) : stoppedReady ? (calibration.values.reduce((a,b)=>a+b,0) / calibration.values.length * 3.6).toFixed(1) : usable && active ? (tracker.current * 3.6).toFixed(1) : '—';
   $('onboarding-speed-label').textContent = calibration.done || stoppedReady ? '이번 측정 평균 속도' : '현재 보행 속도';
-  $('onboarding-status').textContent = calibration.done ? '✓ 측정 완료' : !active ? '● 측정 준비' : !state.tracking ? 'Ⅱ 측정 중지' : !fresh ? '● 위치 신호 기다리는 중' : ready ? '● 적용할 준비가 됐어요' : '● 내 걸음 측정 중';
+  $('onboarding-status').textContent = calibration.done ? '측정 완료' : state.gpsIssue ? '위치 확인 필요' : !active ? fresh ? '위치 확인 완료' : state.tracking ? '위치 확인 중' : '측정 준비' : !state.tracking ? '측정 중지' : !fresh ? '위치 신호 기다리는 중' : ready ? '이 속도를 사용할 수 있어요' : '내 걸음 측정 중';
   $('onboarding-pace').textContent = calibration.done ? '목적지를 정해볼까요?' : stoppedReady ? '측정한 평균 속도를 사용할 수 있어요' : usable && active ? 'GPS 기반 추정 속도' : '보행 표본을 기다려요';
   const elapsed = active && calibration.started ? Math.max(0, Math.floor(((state.tracking ? Date.now() : calibration.stopped) - calibration.started) / 1000)) : 0;
   $('onboarding-time').textContent = `${String(Math.floor(elapsed / 60)).padStart(2,'0')}:${String(elapsed % 60).padStart(2,'0')}`;
@@ -50,8 +50,13 @@ function renderCalibration() {
   $('onboarding-finish').disabled = !ready;
   $('onboarding-start').classList.toggle('hidden', active && state.tracking || calibration.done);
   $('onboarding-start').classList.toggle('ob-secondary', stoppedReady);
-  $('onboarding-start').textContent = active ? '↻ 다시 측정하기' : '◎ 내 위치 측정하기';
-  $('onboarding-stop').classList.toggle('hidden', !active || !state.tracking);
+  $('onboarding-start').textContent = active ? '다시 측정하기' : '걷는 속도 측정 시작';
+  $('onboarding-stop').classList.toggle('hidden', !state.tracking);
+  const seconds = calibration.first ? Math.min(30, Math.floor((calibration.lastSample-calibration.first)/1000)) : 0;
+  $('onboarding-progress').value = seconds;
+  $('onboarding-progress-label').textContent = ready ? '측정 준비 완료' : `사용 가능한 보행 표본 ${seconds} / 30초`;
+  $('onboarding-recovery').classList.toggle('hidden', !state.gpsIssue);
+  $('onboarding-problem').textContent = state.gpsIssue;
   if (calibration.message) $('onboarding-feedback').textContent = calibration.message;
 }
 function leaveOnboarding() {
@@ -60,23 +65,25 @@ function leaveOnboarding() {
   if (!state.mapEnabled && !state.demo) $('map-gate').classList.remove('hidden');
   document.body?.classList.remove('onboarding');
   $('onboarding-card').classList.add('hidden');
-  map.invalidateSize?.();
+  refreshMaps();
   window.scrollTo?.({top:0,behavior:'auto'});
 }
-$('onboarding-start').addEventListener('click', () => {
+function beginCalibration() {
   if (state.tracking) stopTracking();
   Object.assign(calibration,{active:true,done:false,started:Date.now(),readyAtStop:false,first:0,values:[],lastSample:0,accuracy:null,message:'내 위치를 찾고 있어요. 브라우저의 위치 권한을 허용해 주세요.'});
-  $('onboarding-map-view').classList.add('hidden');
+  $('onboarding-map-view').classList.toggle('hidden', !state.mapEnabled);
   startTracking(); renderCalibration();
-});
+}
+$('onboarding-start').addEventListener('click', beginCalibration);
+$('onboarding-retry').addEventListener('click', beginCalibration);
 $('onboarding-stop').addEventListener('click', () => {stopTracking(); notice(calibration.readyAtStop ? '측정을 멈췄어요. 측정한 평균 속도를 사용하거나 다시 측정할 수 있어요.' : '측정을 멈췄어요. 아직 보행 표본이 부족해요. 다시 측정하거나, 측정 없이 지도로 이동하세요.');render();});
 $('onboarding-finish').addEventListener('click', () => {
   if (!calibrationReady()) return;
   state.baseSpeed = calibration.values.reduce((a,b)=>a+b,0) / calibration.values.length;
   $('base-speed').value = (state.baseSpeed * 3.6).toFixed(1);
   $('base-speed-value').textContent = `${(state.baseSpeed * 3.6).toFixed(1)} km/h`;
-  calibration.done = true; state.speedOrigin = 'calibrated'; stopTracking();
-  calibration.message = `측정 완료! 이번 보행의 평균은 시속 ${(state.baseSpeed * 3.6).toFixed(1)}km예요. 목적지를 선택하고 도보 경로를 찾아보세요. 이후 ETA는 이 설정 속도로 계산해요.`;
+  calibration.done = true; state.speedOrigin = 'calibrated';
+  calibration.message = `측정 완료! 평균 ${(state.baseSpeed * 3.6).toFixed(1)} km/h를 사용해요. 지도에서 목적지를 선택해 주세요. ${state.tracking ? '걷는 동안 최근 속도와 남은 도보 거리로 예상 시간을 갱신해요.' : '위치 측정을 멈춘 상태에서는 저장한 속도로 계산해요.'}`;
   $('onboarding-title').textContent = '나만의 속도를 찾았어요.';
   $('onboarding-copy').textContent = '신호 대기, 경사와 GPS 오차에 따라 실제 도착 시간은 달라질 수 있어요.';
   const saved = savePace();
@@ -88,22 +95,22 @@ $('onboarding-skip').addEventListener('click', () => {if (state.tracking) stopTr
 $('recalibrate-button').addEventListener('click', () => {
   if (state.tracking) stopTracking();
   $('onboarding-skip').classList.remove('ob-primary'); $('onboarding-skip').textContent = '나중에 측정하고 지도 보기 →';
-  $('onboarding-map-view').classList.add('hidden'); calibration.accuracy = null;
+  $('onboarding-map-view').classList.toggle('hidden', !state.mapEnabled); calibration.accuracy = null;
   document.body?.classList.add('onboarding');$('onboarding-card').classList.remove('hidden');
   Object.assign(calibration,{done:false,active:false,readyAtStop:false,started:0,stopped:0,first:0,values:[],lastSample:0,accuracy:null,message:'측정하기를 누르면 새로운 표본으로 시작해요. 기존 속도는 새 측정을 완료할 때까지 유지돼요.'});
   tracker.reset();
   $('onboarding-copy').textContent = '화면을 켜 둔 채 평소처럼 걸어주세요. 새 측정을 완료하면 저장된 속도를 바꿔요.';
   $('onboarding-title').textContent = '내 걸음 속도 측정하기';
-  renderCalibration();map.invalidateSize?.();window.scrollTo?.({top:0,behavior:'smooth'});
+  state.gpsIssue = ''; renderCalibration();refreshMaps();window.scrollTo?.({top:0,behavior:'smooth'});
 });
 $('onboarding-theme').addEventListener('click', () => {
   const light = document.body?.classList.toggle('ob-light');
   $('onboarding-theme').setAttribute?.('aria-label', light ? '어두운 화면으로 전환' : '밝은 화면으로 전환');
 });
 $('journey-theme').addEventListener('click', () => document.body?.classList.toggle('ob-light'));
-const state = {start:null, position:null, destination:null, route:null, routes:[], selectedRoute:0, lampResults:null, lampBusy:false, lampMessage:'등록 가로등 정보는 별도로 조회해요. 실제 밝기·점등 상태는 알 수 없어요.', tracking:false, watchId:null, watchEpoch:0,
+const state = {start:null, position:null, destination:null, route:null, routes:[], selectedRoute:0, lampResults:null, lampBusy:false, lampMessage:'등록 가로등 정보는 별도로 조회해요. 실제 밝기/점등 상태는 알 수 없어요.', tracking:false, watchId:null, watchEpoch:0,
   speedOrigin:'default', baseSpeed:4.3 / 3.6, mapEnabled:false, pickingStart:false, demo:false, demoProgress:0, demoSpeed:DEFAULT_SPEED,
-  busArrival:null, requestEpoch:0, routeBusy:false, stopBusy:false, lastGoodFix:0, wakeLock:null};
+  busArrival:null, requestEpoch:0, routeBusy:false, stopBusy:false, lastGoodFix:0, trackingStarted:0, gpsIssue:'', wakeLock:null};
 let routeController, searchController, stopController, lampController, pendingConsent;
 let meetingUI = null;
 let lastTick = Date.now();
@@ -115,12 +122,18 @@ const pathLayer = mapAPI.layerGroup().addTo(map), markerLayer = mapAPI.layerGrou
 const calibrationMap = mapAPI.map('onboarding-map-view',{zoomControl:false,attributionControl:true}).setView([37.5665,126.9780],15);
 const calibrationLayer = mapAPI.layerGroup().addTo(calibrationMap);
 const calibrationTiles = mapAPI.tileLayer(SERVICES.tiles,{maxZoom:19,attribution:'© OpenStreetMap contributors'});
+function refreshMaps() {
+  const refresh = () => { map.invalidateSize?.(); calibrationMap.invalidateSize?.(); };
+  refresh();
+  window.requestAnimationFrame?.(refresh);
+}
+window.addEventListener('resize', refreshMaps);
 function showCalibrationLocation(point, accuracy) {
-  if (!calibration.active) return;
+  if (!document.body?.classList.contains('onboarding')) return;
   $('onboarding-map-view').classList.toggle('hidden', !state.mapEnabled);
-  $('onboarding-map-status').textContent = state.mapEnabled ? `내 위치 · GPS 오차 약 ${Math.round(accuracy)}m` : `내 위치를 찾았어요 (오차 약 ${Math.round(accuracy)}m). 지도 배경은 아래 버튼으로 켜 주세요.`;
+  $('onboarding-map-status').textContent = state.mapEnabled ? `내 위치 / GPS 오차 약 ${Math.round(accuracy)}m` : `내 위치를 찾았어요 (오차 약 ${Math.round(accuracy)}m). 지도 배경은 아래 버튼으로 켜 주세요.`;
   calibrationMap.invalidateSize?.(); calibrationMap.setView(point,accuracy > 40 ? 14 : 17);
-  calibrationLayer.clearLayers(); marker(point,'current',`내 위치 · GPS 오차 약 ${Math.round(accuracy)}m`).addTo(calibrationLayer);
+  calibrationLayer.clearLayers(); marker(point,'current',`내 위치 / GPS 오차 약 ${Math.round(accuracy)}m`).addTo(calibrationLayer);
 }
 
 
@@ -149,7 +162,7 @@ function fitMap() {
 }
 function clearRequests() {
   state.requestEpoch++;
-  lampController?.abort(); state.routes = []; state.lampResults = null; state.lampBusy = false; state.lampMessage = '등록 가로등 정보는 별도로 조회해요. 실제 밝기·점등 상태는 알 수 없어요.';
+  lampController?.abort(); state.routes = []; state.lampResults = null; state.lampBusy = false; state.lampMessage = '등록 가로등 정보는 별도로 조회해요. 실제 밝기/점등 상태는 알 수 없어요.';
   routeController?.abort(); stopController?.abort(); searchController?.abort();
   state.routeBusy = false; state.stopBusy = false;
   $('search-button').disabled = false;
@@ -174,22 +187,24 @@ $('consent-dialog').addEventListener('cancel', event => { event.preventDefault()
 function enableMap() {
   if (state.mapEnabled) return;
   tileWarning = false; state.mapEnabled = true; $('onboarding-map-view').classList.remove('hidden'); $('onboarding-map').classList.add('hidden'); $('onboarding-map-status').textContent = '온라인 지도를 불러오고 있어요. 위치 측정 후 내 위치로 이동해요.'; calibrationTiles.addTo(calibrationMap); tiles.addTo(map); $('map-gate').classList.add('hidden');
-  $('map-caption').textContent = state.position ? `지도: ${mapProvider} · 실제 현장 상황과 다를 수 있어요` : '초기 지도: 서울 시청 · 현재 위치가 아니에요';
+  $('map-caption').textContent = state.position ? `지도: ${mapProvider} / 실제 현장 상황과 다를 수 있어요` : '초기 지도: 서울 시청 / 현재 위치가 아니에요';
+  refreshMaps();
 }
 $('enable-map').addEventListener('click', enableMap);
-$('onboarding-map').addEventListener('click', enableMap);
+$('onboarding-map').addEventListener('click', () => { enableMap(); if (!state.tracking) startTracking(); });
 $('disable-map').addEventListener('click', () => {
   tiles.remove(); calibrationTiles.remove(); state.mapEnabled = false; $('onboarding-map').classList.remove('hidden'); $('onboarding-map-view').classList.add('hidden');
-  $('map-caption').textContent = '온라인 지도 꺼짐 · 새 지도 타일을 요청하지 않아요';
+  $('map-caption').textContent = '온라인 지도 꺼짐 / 새 지도 타일을 요청하지 않아요';
   if (!state.demo) $('map-gate').classList.remove('hidden');
   notice('온라인 지도를 껐어요. 이미 요청한 지도 타일은 브라우저에 남을 수 있어요.');
 });
 let tileWarning = false;
 function mapLoadError(error) {
+  $('onboarding-map-status').textContent = '지도를 불러오지 못했어요. 네트워크를 확인한 뒤 지도 켜기를 다시 눌러 주세요. 속도 측정은 지도 연결과 별도로 사용할 수 있어요.';
   if (mapProvider === 'Kakao') {
     tiles.remove(); calibrationTiles.remove(); state.mapEnabled = false; $('onboarding-map').classList.remove('hidden'); $('onboarding-map-view').classList.add('hidden');
     if (!state.demo) $('map-gate').classList.remove('hidden');
-    $('map-caption').textContent = 'Kakao 지도 연결 실패 · 지도 켜기로 다시 시도할 수 있어요';
+    $('map-caption').textContent = 'Kakao 지도 연결 실패 / 지도 켜기로 다시 시도할 수 있어요';
   }
   if (!tileWarning) { tileWarning = true; notice(error?.message || '지도 타일을 불러오지 못했어요. 네트워크를 확인하거나 좌표 입력을 사용해 주세요.'); }
 }
@@ -202,7 +217,7 @@ function setPickingStart(picking) {
   $('set-destination').setAttribute?.('aria-pressed', String(!picking));
   $('map').setAttribute?.('aria-label', picking ? '지도. 누르면 출발지로 지정됩니다.' : '지도. 누르면 목적지로 지정됩니다.');
   $('set-start').textContent = '출발지 지정';
-  $('map-tip').textContent = picking ? '출발지 선택 중 · 지도를 눌러 주세요' : '목적지 선택 중 · 원하는 곳을 눌러 주세요';
+  $('map-tip').textContent = picking ? '출발지 선택 중 / 지도를 눌러 주세요' : '목적지 선택 중 / 원하는 곳을 눌러 주세요';
 }
 function setDestination(point, name, source = '지도에서 선택한 지점') {
   // Search, stops and shared destinations must also leave start-picking mode.
@@ -210,7 +225,7 @@ function setDestination(point, name, source = '지도에서 선택한 지점') {
   meetingUI?.destinationChanged(point);
   clearRequests(); state.destination = {point,name,source}; state.route = null; state.busArrival = null;
   $('destination-name').textContent = name;
-  $('destination-detail').textContent = `${source} · ${coordinateLabel(point)}`;
+  $('destination-detail').textContent = `${source} / ${coordinateLabel(point)}`;
   $('clear-destination').classList.remove('hidden');
   $('search-results').classList.add('hidden');
   $('map-tip').textContent = state.position ? '목적지를 정했어요. 도보 경로를 찾아보세요' : '출발지를 정하거나 내 위치로 걷기를 시작하세요';
@@ -266,7 +281,7 @@ $('search-form').addEventListener('submit', async event => {
     $('search-results').replaceChildren();
     for (const result of results) {
       const li = document.createElement('li'), button = document.createElement('button');
-      button.type = 'button'; button.textContent = result.address ? `${result.name} · ${result.address}` : result.name;
+      button.type = 'button'; button.textContent = result.address ? `${result.name} / ${result.address}` : result.name;
       button.addEventListener('click', () => { setDestination(result.point,result.name,result.source || 'Nominatim 검색'); map.setView(result.point,16); });
       li.append(button); $('search-results').append(li);
     }
@@ -303,7 +318,7 @@ function startTracking() {
   if (!window.isSecureContext) { notice('위치 측정에는 HTTPS가 필요해요. GitHub Pages 주소 또는 localhost에서 열어 주세요.'); return; }
   if (!navigator.geolocation) { notice('이 브라우저는 위치 측정을 지원하지 않아요. 지도에서 출발지를 직접 정할 수 있어요.'); return; }
   if (state.demo) exitDemo();
-  tracker.reset(); state.lastGoodFix = 0; state.tracking = true;
+  tracker.reset(); state.lastGoodFix = 0; state.trackingStarted = Date.now(); state.gpsIssue = ''; state.tracking = true;
   const watchEpoch = ++state.watchEpoch;
   $('gps-button').innerHTML = '<span aria-hidden="true">Ⅱ</span> 걷기 측정 멈추기';
   $('gps-note').textContent = 'GPS는 기본적으로 이 기기에서 처리해요. 온라인 지도에는 표시 지역이 전달되고, 친구 위치 공유는 별도 동의 후 켜요.';
@@ -320,16 +335,16 @@ function startTracking() {
       if (!valid) {
         if (calibration.active && coords.accuracy > 40 && coords.accuracy <= 1000 && Number.isFinite(coords.latitude) && Number.isFinite(coords.longitude) && Math.abs(coords.latitude) <= 90 && Math.abs(coords.longitude) <= 180) {
           showCalibrationLocation([coords.latitude,coords.longitude],coords.accuracy);
-          markerLayer.clearLayers(); marker([coords.latitude,coords.longitude],'current','대략적인 위치 · 속도 측정에는 사용하지 않아요').addTo(markerLayer);
+          markerLayer.clearLayers(); marker([coords.latitude,coords.longitude],'current','대략적인 위치 / 속도 측정에는 사용하지 않아요').addTo(markerLayer);
           map.setView([coords.latitude,coords.longitude],14); $('map-gate').classList.add('hidden');
-          $('map-caption').textContent = `대략적인 위치 · 오차 약 ${Math.round(coords.accuracy)}m · 속도 측정 보류`;
+          $('map-caption').textContent = `대략적인 위치 / 오차 약 ${Math.round(coords.accuracy)}m / 속도 측정 보류`;
         }
         notice(`GPS 정확도가 낮거나 위치가 튀었어요. 탁 트인 곳에서 잠시 기다려 주세요. (오차 약 ${Math.round(coords.accuracy)}m)`); render(); return; }
-      state.position = [coords.latitude,coords.longitude]; state.lastGoodFix = position.timestamp;
+      state.position = [coords.latitude,coords.longitude]; state.lastGoodFix = position.timestamp; state.gpsIssue = '';
       showCalibrationLocation(state.position,coords.accuracy);
       if (calibration.active && !calibration.done) {
         const sample = tracker.samples.at(-1);
-        if (tracker.status === 'measured' && sample && sample.value >= 0.4 && sample.timestamp > calibration.lastSample) {
+        if (tracker.status === 'measured' && sample && sample.value >= 0.4 && sample.value <= 3.5 && sample.timestamp > calibration.lastSample) {
           if (calibration.lastSample && sample.timestamp - calibration.lastSample > 15000) { calibration.values = []; calibration.first = 0; }
           if (!calibration.first) calibration.first = sample.timestamp;
           calibration.lastSample = sample.timestamp; calibration.values.push(sample.value);
@@ -339,14 +354,18 @@ function startTracking() {
       }
       if (!state.start) state.start = state.position;
       if (!centered) { map.setView(state.position,16); centered = true; }
-      $('map-caption').textContent = `${state.mapEnabled ? mapProvider : '지도 타일 꺼짐'} · GPS 오차 약 ${Math.round(coords.accuracy)}m`;
+      $('map-caption').textContent = `${state.mapEnabled ? mapProvider : '지도 타일 꺼짐'} / GPS 오차 약 ${Math.round(coords.accuracy)}m`;
       notice(tracker.status === 'too-fast' ? '보행 속도 범위를 벗어났어요. 걷기로 돌아오면 다시 측정해요.' : '');
       draw(); render();
     }, error => {
       if (!state.tracking || watchEpoch !== state.watchEpoch) return;
       if (error.code === 1) {
         stopTracking(); notice('위치 권한이 허용되지 않았어요. Safari의 이 웹사이트 위치 권한을 바꾸거나 지도에서 출발지를 직접 정해 주세요.');
-      } else notice(error.code === 3 ? '위치 측정 시간이 초과됐어요. GPS 신호를 기다리는 중이에요.' : '지금 위치를 확인할 수 없어요. 네트워크와 위치 서비스를 확인해 주세요.');
+        state.gpsIssue = '위치 권한이 꺼져 있어요. Safari의 이 웹사이트 위치 권한을 허용한 뒤 다시 시도하거나 속도를 직접 입력해 주세요.';
+      } else {
+        state.gpsIssue = error.code === 3 ? '위치 측정 시간이 초과됐어요. 탁 트인 곳에서 다시 시도하거나 속도를 직접 입력해 주세요.' : '지금 위치를 확인할 수 없어요. 위치 서비스를 확인한 뒤 다시 시도해 주세요.';
+        notice(state.gpsIssue);
+      }
       render();
     }, {enableHighAccuracy:true,maximumAge:0,timeout:20000});
   } catch { stopTracking(); notice('위치 측정을 시작하지 못했어요. 브라우저 위치 권한을 확인해 주세요.'); render(); }
@@ -354,6 +373,21 @@ function startTracking() {
 $('gps-button').addEventListener('click', () => {
   if (state.tracking) { stopTracking(); notice('측정을 멈췄어요. 현재 위치는 마지막 측정 지점이며, ETA는 설정 속도 기준이에요.'); render(); }
   else startTracking();
+});
+// Do not silently turn a lost live GPS session into a saved-pace estimate.
+function checkGpsWait(now) {
+  if (!state.tracking) return;
+  const missingFix = now - (state.lastGoodFix || state.trackingStarted) >= 25000;
+  const missingSpeed = calibration.active ? !calibrationReady() && now - calibration.started >= 120000 : tracker.current === null && now-state.trackingStarted >= 45000;
+  if (!missingFix && !missingSpeed) return;
+  stopTracking();
+  state.gpsIssue = missingFix ? '25초 동안 정확한 위치를 받지 못했어요. 실외에서 위치 권한과 정확한 위치 설정을 확인한 뒤 다시 시도해 주세요.' : '충분한 보행 표본을 모으지 못했어요. 탁 트인 곳에서 다시 측정하거나 속도를 직접 입력해 주세요.';
+  notice(state.gpsIssue);
+}
+$('gps-retry').addEventListener('click', () => { stopTracking(); startTracking(); });
+$('gps-use-saved').addEventListener('click', () => {
+  stopTracking(); state.gpsIssue = '';
+  notice('마지막 확인 위치와 저장한 속도로 계산해요. 이동에 따른 갱신은 걷기 시작을 다시 눌러 주세요.'); render();
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' && state.tracking) {
@@ -368,13 +402,14 @@ async function findRoute() {
   const epoch = state.requestEpoch, start = [...state.position], end = [...state.destination.point];
   if (!(await askConsent('실제 도보 경로 찾기', '선택한 출발지와 목적지의 정확한 좌표를 FOSSGIS 도보 경로 서버 (routing.openstreetmap.de)에 보내요. 현재 위치를 출발지로 쓰면 현재 위치 좌표가 전송돼요. 이동 중에는 경로 서버로 자동 전송하지 않아요.'))) return;
   if (epoch !== state.requestEpoch) return;
-  lampController?.abort(); state.lampResults = null; state.lampBusy = false; state.lampMessage = '등록 가로등 정보는 별도로 조회해요. 실제 밝기·점등 상태는 알 수 없어요.';
+  lampController?.abort(); state.lampResults = null; state.lampBusy = false; state.lampMessage = '등록 가로등 정보는 별도로 조회해요. 실제 밝기/점등 상태는 알 수 없어요.';
   routeController?.abort(); routeController = new AbortController(); const controller = routeController;
   state.routeBusy = true; render(); notice('보행로를 따라가는 경로를 찾고 있어요…');
   try {
     const routes = await getWalkingRoutes(start,end,controller.signal);
     if (epoch !== state.requestEpoch || controller.signal.aborted) return;
-    state.routes = routes.map(route => { const firstGap = distance(start,route.points[0]), lastGap = distance(end,route.points.at(-1)); return {...route,steps:(route.steps || []).map(step=>({...step,at:step.at+firstGap})),distance:route.distance + firstGap + lastGap,points:[start,...route.points,end],endpointGap:Math.max(firstGap,lastGap)}; }).sort((a,b)=>a.distance-b.distance);
+    // Keep only provider geometry and distance. Unverified straight connectors are not walking paths.
+    state.routes = routes.map(route => ({...route, endpointGap:Math.max(distance(start,route.points[0]),distance(end,route.points.at(-1)))})).sort((a,b)=>a.distance-b.distance);
     state.selectedRoute = 0; state.route = state.routes[0];
     const route = state.route;
     $('map-tip').textContent = '내 걸음 속도에 맞춰 도착 시간이 달라져요';
@@ -390,7 +425,7 @@ let selectedStop = null;
 function showStop(stop) {
   selectedStop = stop;
   $('stop-name').textContent = stop.name;
-  $('stop-detail').textContent = `OpenStreetMap 정류장 · 지도 데이터 ID ${stop.id} · 직선 ${shortDistance(stop.distance)}`;
+  $('stop-detail').textContent = `OpenStreetMap 정류장 / 지도 데이터 ID ${stop.id} / 직선 ${shortDistance(stop.distance)}`;
   $('stop-dialog').showModal();
 }
 $('stop-close').addEventListener('click', () => { $('stop-dialog').close(); selectedStop = null; });
@@ -421,7 +456,7 @@ async function findStops() {
       marker(stop.point,'stop',stop.name).on('click',choose).addTo(stopLayer);
     }
     $('stop-results').classList.toggle('hidden',stops.length === 0);
-    notice(stops.length ? '지도나 목록에서 정류장을 누르면 정보를 볼 수 있어요. 실제 버스 위치·도착 시간은 아직 연결되지 않았어요. 같은 이름이어도 방향이 다를 수 있으니 탑승 방향을 확인해 주세요.' : '700m 안에서 등록된 정류장을 찾지 못했어요. 정류장이 있어도 데이터에 누락될 수 있어요.');
+    notice(stops.length ? '지도나 목록에서 정류장을 누르면 정보를 볼 수 있어요. 실제 버스 위치/도착 시간은 아직 연결되지 않았어요. 같은 이름이어도 방향이 다를 수 있으니 탑승 방향을 확인해 주세요.' : '700m 안에서 등록된 정류장을 찾지 못했어요. 정류장이 있어도 데이터에 누락될 수 있어요.');
   } catch (error) { if (!controller.signal.aborted) notice(`정류장을 불러오지 못했어요. ${error.name === 'AbortError' ? '정류장 서비스 응답 시간이 초과됐어요. 잠시 후 다시 눌러 주세요. 정류장이 없다는 뜻은 아니에요.' : error.message}`); }
   finally { if (controller === stopController) { state.stopBusy = false; render(); } }
 }
@@ -437,23 +472,37 @@ $('bus-form').addEventListener('submit', event => {
   meetingUI?.useBusTime?.(state.busArrival);
   notice('직접 입력한 시간과 현재 목적지까지의 도보 시간을 비교해요. 실제 버스 도착정보와 탑승 보장을 의미하지 않아요.'); render();
 });
-$('base-speed').addEventListener('input', () => {
+function setManualPace(kmh) {
+  if (!Number.isFinite(kmh) || kmh < 1.5 || kmh > 7) return false;
   state.speedOrigin = 'manual';
-  try { window.localStorage.removeItem(PACE_KEY); } catch {}
-  state.baseSpeed = Number($('base-speed').value) / 3.6;
-  $('base-speed-value').textContent = `${Number($('base-speed').value).toFixed(1)} km/h`;
+  state.baseSpeed = kmh / 3.6;
+  $('base-speed').value = kmh.toFixed(1);
+  $('base-speed-value').textContent = `${kmh.toFixed(1)} km/h`;
+  const saved = savePace();
+  notice(saved ? '직접 정한 속도를 이 기기에 저장했어요. 걷기 측정 중에는 최근 GPS 속도를 우선 사용해요.' : '속도를 적용했지만 기기에 저장할 수 없어요. 브라우저 저장 설정을 확인해 주세요.');
   render();
+  return true;
+}
+$('base-speed').addEventListener('input', () => setManualPace(Number($('base-speed').value)));
+$('edit-pace').addEventListener('click', () => { $('speed-settings').open = true; $('speed-settings').scrollIntoView?.({behavior:'smooth',block:'start'}); });
+$('onboarding-manual').addEventListener('click', () => { $('manual-pace-details').open = true; $('manual-pace-details').scrollIntoView?.({behavior:'smooth',block:'center'}); });
+$('manual-pace-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const kmh = Number($('manual-pace').value);
+  if (!Number.isFinite(kmh) || kmh < 1.5 || kmh > 7) { notice('1.5~7.0 km/h 사이로 입력해 주세요.'); return; }
+  stopTracking(); state.gpsIssue = ''; leaveOnboarding(); setManualPace(kmh);
 });
 
 function estimate(now) {
   const stale = state.tracking && (!state.lastGoodFix || now - state.lastGoodFix > 15000);
-  const unreliable = state.tracking && ['inaccurate','jump','too-fast'].includes(tracker.status);
+  const unreliable = Boolean(state.gpsIssue) || state.tracking && ['inaccurate','jump','too-fast'].includes(tracker.status);
   const speed = state.demo ? state.demoSpeed : state.tracking ? tracker.current : state.baseSpeed;
   const progress = state.route && state.position ? projectOnRoute(state.position,state.route.points,state.route.distance) : null;
   const offRoute = progress && progress.offset > 45;
-  const arrived = progress && progress.remaining < 15 && distance(state.position,state.destination.point) < 25 && !stale && !unreliable;
-  const seconds = progress && !stale && !unreliable && !offRoute ? arrived ? 0 : etaSeconds(progress.remaining,speed) : null;
-  return {stale,unreliable,speed,progress,offRoute,arrived,seconds};
+  const endpointUncertain = state.route?.endpointGap > 20;
+  const arrived = progress && progress.remaining < 15 && distance(state.position,state.destination.point) < 25 && !stale && !unreliable && !offRoute && !endpointUncertain;
+  const seconds = progress && !stale && !unreliable && !offRoute && !endpointUncertain ? arrived ? 0 : etaSeconds(progress.remaining,speed) : null;
+  return {stale,unreliable,speed,progress,offRoute,arrived,seconds,endpointUncertain};
 }
 let comparisonSignature = '';
 function renderComparison() {
@@ -461,7 +510,7 @@ function renderComparison() {
   $('lamp-button').disabled = !state.routes.length || state.lampBusy || state.routeBusy;
   $('lamp-button').textContent = state.lampBusy ? '등록 가로등 조회 중…' : '등록 가로등 비교하기';
   $('lamp-status').textContent = state.lampMessage;
-  $('route-comparison-note').textContent = state.routes.length ? `출발점 기준 · ${(state.baseSpeed * 3.6).toFixed(1)}km/h ${state.speedOrigin === 'calibrated' ? '측정 평균' : '설정 속도'}로 비교해요. 신호·경사는 제외해요. ${state.routes.length === 1 ? '제공기관이 경로 1개만 반환했어요. 다른 길은 만들지 않아요.' : '조회된 후보 중 예상 시간이 짧은 순서예요. 모든 길 중 최단·최속을 보장하지 않아요.'}` : '경로를 찾으면 도보 후보별 거리와 예상 시간을 비교해요.';
+  $('route-comparison-note').textContent = state.routes.length ? `출발점 기준 / ${(state.baseSpeed * 3.6).toFixed(1)}km/h ${state.speedOrigin === 'calibrated' ? '측정 평균' : '설정 속도'}로 비교해요. 신호/경사는 제외해요. ${state.routes.length === 1 ? '제공기관이 경로 1개만 반환했어요. 다른 길은 만들지 않아요.' : '조회된 후보 중 예상 시간이 짧은 순서예요. 모든 길 중 최단/최속을 보장하지 않아요.'}` : '경로를 찾으면 도보 후보별 거리와 예상 시간을 비교해요.';
   const signature = JSON.stringify([state.routes,state.selectedRoute,state.baseSpeed,state.lampResults,state.routeBusy]);
   if (signature === comparisonSignature) return;
   comparisonSignature = signature; $('route-options').replaceChildren();
@@ -469,16 +518,16 @@ function renderComparison() {
     const button = document.createElement('button'); button.className = 'route-option'; button.type = 'button'; button.disabled = state.routeBusy;
     button.setAttribute?.('aria-pressed',String(index === state.selectedRoute));
     const title = document.createElement('strong'), detail = document.createElement('span'), lighting = document.createElement('small');
-    title.textContent = `${index === 0 ? state.routes.length > 1 ? '빠른 도보 후보' : '도보 경로' : `다른 도보 경로 ${index + 1}`} · ${Math.max(1,Math.ceil(route.distance / state.baseSpeed / 60))}분`;
-    detail.textContent = `${shortDistance(route.distance)}${index ? ` · 첫 후보보다 약 ${Math.round((route.distance-state.routes[0].distance)/state.baseSpeed/60)}분 더` : ''}${index === state.selectedRoute ? ' · 선택됨' : ' · 눌러서 보기'}`;
-    lighting.textContent = state.lampResults ? `경로 20m 이내 등록 가로등 ${state.lampResults[index].length}개 · 실제 밝기 아님` : '가로등 정보 미조회';
+    title.textContent = `${index === 0 ? state.routes.length > 1 ? '빠른 도보 후보' : '도보 경로' : `다른 도보 경로 ${index + 1}`} / ${route.endpointGap > 20 ? '끝점 확인 필요' : `${Math.max(1,Math.ceil(route.distance / state.baseSpeed / 60))}분`}`;
+    detail.textContent = `${shortDistance(route.distance)}${index ? ` / 첫 후보보다 약 ${Math.round((route.distance-state.routes[0].distance)/state.baseSpeed/60)}분 더` : ''}${index === state.selectedRoute ? ' / 선택됨' : ' / 눌러서 보기'}`;
+    lighting.textContent = state.lampResults ? `경로 20m 이내 등록 가로등 ${state.lampResults[index].length}개 / 실제 밝기 아님` : '가로등 정보 미조회';
     button.append(title,detail,lighting);button.addEventListener('click',()=>{state.selectedRoute=index;state.route=route;draw();fitMap();render();});$('route-options').append(button);
   });
 }
 $('lamp-button').addEventListener('click',async()=>{
   if (!state.routes.length || state.lampBusy || state.routeBusy || state.demo) return;
   const epoch=state.requestEpoch, routes=state.routes;
-  if (!(await askConsent('등록 가로등 정보 비교', '도보 후보 경로를 감싸는 지역의 좌표 범위를 Overpass (overpass-api.de)에 보내 OpenStreetMap의 등록 가로등을 조회해요. 누락될 수 있으며 개수는 실제 밝기·점등·안전성을 뜻하지 않아요.'))) return;
+  if (!(await askConsent('등록 가로등 정보 비교', '도보 후보 경로를 감싸는 지역의 좌표 범위를 Overpass (overpass-api.de)에 보내 OpenStreetMap의 등록 가로등을 조회해요. 누락될 수 있으며 개수는 실제 밝기/점등/안전성을 뜻하지 않아요.'))) return;
   if(epoch!==state.requestEpoch || routes!==state.routes) return;
   lampController?.abort();lampController=new AbortController();const controller=lampController;
   state.lampBusy=true;state.lampMessage='등록된 가로등을 조회하고 있어요…';render();
@@ -486,7 +535,7 @@ $('lamp-button').addEventListener('click',async()=>{
     const results=await getRouteLamps(routes,controller.signal);
     if(controller.signal.aborted || epoch!==state.requestEpoch || routes!==state.routes)return;
     state.lampResults=results;
-    state.lampMessage=results.some(r=>r.length) ? '경로 주변의 지도 등록 개수만 비교해요. 반대편 도로의 등불이 포함되거나 누락될 수 있어요. 실제 밝기·점등·안전을 판단할 수 없어 밝은 길로 추천하지 않아요.' : '이 경로 주변에 등록된 가로등을 찾지 못했어요. 가로등이 없거나 어두운 길이라는 뜻은 아니에요. 밝은 길 비교는 자료 부족으로 제공하지 않아요.';
+    state.lampMessage=results.some(r=>r.length) ? '경로 주변의 지도 등록 개수만 비교해요. 반대편 도로의 등불이 포함되거나 누락될 수 있어요. 실제 밝기/점등/안전을 판단할 수 없어 밝은 길로 추천하지 않아요.' : '이 경로 주변에 등록된 가로등을 찾지 못했어요. 가로등이 없거나 어두운 길이라는 뜻은 아니에요. 밝은 길 비교는 자료 부족으로 제공하지 않아요.';
   }catch(error){if(!controller.signal.aborted)state.lampMessage=error.name==='AbortError' ? '가로등 조회 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.' : `가로등 정보를 확인하지 못했어요. ${error.message}`;}
   finally{if(controller===lampController){state.lampBusy=false;render();}}
 });
@@ -494,6 +543,9 @@ $('lamp-button').addEventListener('click',async()=>{
 function render() {
   renderCalibration(); renderComparison();
   const now = Date.now(), e = estimate(now);
+  $('gps-recovery').classList.toggle('hidden', !state.gpsIssue);
+  $('gps-problem').textContent = state.gpsIssue;
+  $('gps-use-saved').disabled = !state.position;
   $('route-button').disabled = !state.position || !state.destination || state.routeBusy || state.demo;
   $('route-button').textContent = state.routeBusy ? '경로 찾는 중…' : state.route ? '도보 경로 다시 찾기' : '경로와 도착 시간 계산하기';
   $('stops-button').disabled = state.stopBusy;
@@ -502,39 +554,43 @@ function render() {
   $('stops-button').textContent = state.stopBusy ? '정류장 찾는 중…' : '주변 700m 정류장 찾기 ↗';
   const speedValid = Number.isFinite(e.speed) && !e.stale && !e.unreliable;
   $('walking-speed').textContent = speedValid ? `${(e.speed * 3.6).toFixed(1)} km/h` : '--';
-  $('journey-pace-note').textContent = state.demo ? '가상 체험 · 실제 보행 기록이 아니에요' : state.speedOrigin === 'calibrated' ? `내 측정 평균 ${(state.baseSpeed * 3.6).toFixed(1)} km/h · GPS 추정치` : `${state.speedOrigin === 'manual' ? '직접 설정' : '기본'} 속도 ${(state.baseSpeed * 3.6).toFixed(1)} km/h · 실제 측정값이 아니에요`;
+  $('journey-pace-note').textContent = state.demo ? '가상 체험 / 실제 보행 기록이 아니에요' : state.speedOrigin === 'calibrated' ? `내 측정 평균 ${(state.baseSpeed * 3.6).toFixed(1)} km/h / GPS 추정치` : `${state.speedOrigin === 'manual' ? '직접 설정' : '기본'} 속도 ${(state.baseSpeed * 3.6).toFixed(1)} km/h / 실제 측정값이 아니에요`;
   $('speed-source').textContent = state.demo ? '가상 속도' : state.tracking ? e.stale ? '신호 대기' : e.unreliable ? '측정 보류' : tracker.current === null ? '측정 중' : 'GPS 측정' : state.speedOrigin === 'calibrated' ? '측정 평균' : state.speedOrigin === 'manual' ? '직접 설정' : '기본 속도';
   $('tracking-tag').innerHTML = `<i></i>${state.demo ? '가상 체험' : state.routeBusy ? '경로 찾는 중' : !state.destination ? '목적지 선택' : !state.route ? '경로 필요' : state.tracking ? e.stale ? 'GPS 대기' : e.seconds !== null ? '실시간 예상' : '속도 확인 중' : '저장 속도 예상'}`;
   $('tracking-tag').classList.toggle('active',state.tracking && !e.stale);
   $('eta-label').textContent = state.demo ? '가상 경로 예상 도착까지' : '예상 도착까지';
-  $('remaining-distance').textContent = e.progress ? shortDistance(e.progress.remaining) : state.position && state.destination ? shortDistance(distance(state.position,state.destination.point)) : '--';
+  $('remaining-distance').textContent = e.progress ? shortDistance(e.progress.remaining) : '--';
   $('eta-minutes').textContent = e.arrived ? '도착' : e.seconds !== null ? String(Math.max(1,Math.ceil(e.seconds / 60))) : '--';
   $('eta-unit').textContent = e.arrived ? '부근' : '분';
+  if (state.route) $('map-tip').textContent = e.seconds !== null ? `${e.arrived ? '도착 부근' : `도보 약 ${Math.max(1,Math.ceil(e.seconds/60))}분`} / 남은 도보 ${shortDistance(e.progress.remaining)}` : e.endpointUncertain ? '보행로 끝점 확인 필요 / 예상 시간 보류' : '위치와 속도 확인 필요 / 예상 시간 보류';
   let note = '실제 도보 경로를 찾기 전에는 도착 시간을 표시하지 않아요.';
   let arrival = '목적지를 정하면 여기에 알려드릴게요';
   if (state.destination && !state.position) arrival = '출발지를 정하거나 위치 측정을 시작해 주세요';
-  else if (state.destination && !state.route) { arrival = state.routeBusy ? '도보 경로를 찾고 있어요…' : '위의 경로 계산 버튼을 눌러 주세요'; note = '표시된 거리는 직선거리예요. 점선은 걸을 수 있는 길을 뜻하지 않아요.'; }
+  else if (state.destination && !state.route) { arrival = state.routeBusy ? '도보 경로를 찾고 있어요…' : '위의 경로 계산 버튼을 눌러 주세요'; note = '실제 도보 경로가 없어 거리와 시간을 계산하지 않아요. 지도 점선은 두 지점을 잇는 직선이에요.'; }
   if (state.route) {
-    note = state.demo ? '가상 위치·속도·경로로 동작을 확인하는 체험이에요. 실제 길 안내가 아니에요.' : `FOSSGIS 도보 경로 · 신호 대기와 경사는 제외${state.route.endpointGap > 15 ? ` · 끝점 연결 최대 ${Math.round(state.route.endpointGap)}m는 직선 추정` : ''}`;
-    if (e.offRoute) arrival = '경로에서 벗어났어요. 도보 경로를 다시 찾아 주세요';
+    note = state.demo ? '가상 위치, 속도, 경로로 동작을 확인하는 체험이에요. 실제 길 안내가 아니에요.' : `FOSSGIS 도보 경로 / 신호 대기와 경사는 제외${state.route.endpointGap > 0 ? ` / 보행로 끝점과 선택 위치 차이 최대 ${Math.round(state.route.endpointGap)}m. 연결 거리는 시간에 더하지 않아요` : ''}`;
+    if (e.endpointUncertain) arrival = '목적지와 보행로 연결을 확인하지 못했어요. 지도에서 가까운 보행로 지점을 선택해 주세요';
+    else if (state.gpsIssue) arrival = '위치 확인이 필요해요. 아래에서 재시도 또는 저장 속도 사용을 선택해 주세요';
+    else if (e.offRoute) arrival = '경로에서 벗어났어요. 도보 경로를 다시 찾아 주세요';
     else if (e.stale) arrival = '새 GPS 신호를 기다리고 있어요';
     else if (e.unreliable) arrival = '위치 또는 속도가 불확실해 ETA를 보류했어요';
     else if (e.arrived) arrival = '목적지와 가까워요. 실제 입구를 확인해 주세요';
     else if (e.speed !== null && e.speed < .25) arrival = '잠시 멈춰 있어요. 걸으면 다시 계산할게요';
     else if (e.seconds === null) arrival = '조금 걸어 주세요. 내 속도를 측정 중이에요';
-    else arrival = `${formatTime(now + e.seconds * 1000)} 도착 예상${state.tracking || state.demo ? '' : ' · 설정 속도 기준'}`;
+    else arrival = `${formatTime(now + e.seconds * 1000)} 도착 예상${state.tracking || state.demo ? '' : ' / 설정 속도 기준'}`;
   }
   const navigation = $('walking-navigation');
   navigation.classList.toggle('hidden',!state.route || state.demo);
   let guidance = '내 위치로 걷기를 시작하면 다음 방향을 안내해요.';
   if (state.tracking) {
-    if (document.hidden || e.stale) guidance = 'GPS 갱신 대기 · 화면을 켜고 위치를 확인해 주세요.';
+    if (e.endpointUncertain) guidance = '보행로와 목적지의 연결을 확인한 뒤 경로를 다시 찾아 주세요.';
+    else if (document.hidden || e.stale) guidance = 'GPS 갱신 대기 / 화면을 켜고 위치를 확인해 주세요.';
     else if (e.unreliable) guidance = '위치 정확도가 낮아 방향 안내를 보류해요.';
-    else if (e.offRoute) guidance = '경로 이탈 · 멈춰서 위치를 확인한 뒤 도보 경로 다시 찾기를 눌러 주세요.';
+    else if (e.offRoute) guidance = '경로 이탈 / 멈춰서 위치를 확인한 뒤 도보 경로 다시 찾기를 눌러 주세요.';
     else if (e.arrived) guidance = '목적지 부근이에요. 실제 입구를 확인해 주세요.';
     else {
       const next = nextManeuver(state.route,e.progress);
-      guidance = next ? `${next.meters < 15 ? '이 부근에서' : `약 ${shortDistance(next.meters)} 후`} ${next.instruction}${next.name ? ` · ${next.name}` : ''}` : '다음 방향 정보가 없어요. 지도와 현장 표지를 확인해 주세요.';
+      guidance = next ? `${next.meters < 15 ? '이 부근에서' : `약 ${shortDistance(next.meters)} 후`} ${next.instruction}${next.name ? ` / ${next.name}` : ''}` : '다음 방향 정보가 없어요. 지도와 현장 표지를 확인해 주세요.';
     }
   }
   $('navigation-direction').textContent = guidance;
@@ -548,7 +604,7 @@ function render() {
       copy = document.createElement('span'); result.append(copy);
       const clear = document.createElement('button'); clear.textContent = '입력 시간 지우기'; clear.addEventListener('click',() => { state.busArrival = null; render(); }); result.append(clear);
     }
-    copy.textContent = `${state.demo ? '[가상 보행 체험] ' : ''}[직접 입력 · 실시간 아님] ${remaining}분 후 도착. ${headline} 목적지가 탑승 정류장인지 확인해 주세요.`;
+    copy.textContent = `${state.demo ? '[가상 보행 체험] ' : ''}[직접 입력 / 실시간 아님] ${remaining}분 후 도착. ${headline} 목적지가 탑승 정류장인지 확인해 주세요.`;
     result.classList.toggle('warn',status.kind !== 'possible');
   }
   meetingUI?.refresh();
@@ -567,12 +623,12 @@ function startDemo() {
   leaveOnboarding();
   clearRequests(); stopTracking(); tracker.reset(); state.demo = true; state.demoProgress = 0; state.busArrival = null;
   state.position = DEMO_POINTS[0]; state.start = state.position;
-  state.destination = {point:DEMO_POINTS.at(-1),name:'가상 목적지 · 도보 체험',source:'가상 데이터'};
+  state.destination = {point:DEMO_POINTS.at(-1),name:'가상 목적지 / 도보 체험',source:'가상 데이터'};
   state.route = {points:DEMO_POINTS,distance:pathDistance(DEMO_POINTS),source:'가상 체험'};
-  $('destination-name').textContent = state.destination.name; $('destination-detail').textContent = '가상 위치와 경로 · 실제 길 안내가 아니에요';
+  $('destination-name').textContent = state.destination.name; $('destination-detail').textContent = '가상 위치와 경로 / 실제 길 안내가 아니에요';
   $('clear-destination').classList.remove('hidden'); $('demo-banner').classList.remove('hidden'); $('map-gate').classList.add('hidden');
   $('set-start').classList.add('hidden');
-  $('map-caption').textContent = state.mapEnabled ? '지도 위 가상 경로 · 실제 보행로가 아니에요' : '온라인 지도 꺼짐 · 가상 경로만 표시 중';
+  $('map-caption').textContent = state.mapEnabled ? '지도 위 가상 경로 / 실제 보행로가 아니에요' : '온라인 지도 꺼짐 / 가상 경로만 표시 중';
   $('map-tip').textContent = '가상 이동에 따라 남은 시간과 거리가 바뀌어요';
   stopLayer.clearLayers(); $('stop-results').classList.add('hidden'); notice(); draw(); fitMap(); render();
 }
@@ -583,12 +639,13 @@ function exitDemo() {
   $('destination-detail').textContent = '장소 검색이나 좌표 입력도 가능해요'; $('clear-destination').classList.add('hidden');
   $('map-tip').textContent = '지도를 눌러 목적지를 정하세요';
   if (!state.mapEnabled) $('map-gate').classList.remove('hidden');
-  $('map-caption').textContent = state.mapEnabled ? '초기 지도: 서울 시청 · 현재 위치가 아니에요' : '온라인 지도 꺼짐';
+  $('map-caption').textContent = state.mapEnabled ? '초기 지도: 서울 시청 / 현재 위치가 아니에요' : '온라인 지도 꺼짐';
   draw(); render();
 }
 $('demo-button').addEventListener('click',startDemo); $('offline-demo').addEventListener('click',startDemo); $('exit-demo').addEventListener('click',exitDemo);
 setInterval(() => {
   const now = Date.now(), delta = Math.min(2,(now - lastTick) / 1000); lastTick = now;
+  checkGpsWait(now);
   if (state.demo && document.visibilityState === 'visible') {
     state.demoSpeed = 1.2 + .16 * Math.sin(now / 20000);
     state.demoProgress = Math.min(state.route.distance,state.demoProgress + delta * state.demoSpeed);
@@ -598,7 +655,7 @@ setInterval(() => {
 },1000);
 const savedPace = readPace();
 if (savedPace) {
-  state.baseSpeed = savedPace.speed; state.speedOrigin = 'calibrated';
+  state.baseSpeed = savedPace.speed; state.speedOrigin = savedPace.origin === 'manual' ? 'manual' : 'calibrated';
   $('base-speed').value = (state.baseSpeed * 3.6).toFixed(1);
   $('base-speed-value').textContent = `${(state.baseSpeed * 3.6).toFixed(1)} km/h`;
   leaveOnboarding();
@@ -609,7 +666,7 @@ render();
 meetingUI = initMeetupUI({map,L:mapAPI,askConsent,notice,formatTime,
   getContext:() => ({...state,estimate:estimate(Date.now()),fix:tracker.lastFix}),
   requestGps:startTracking,
-  showSharedMap:() => { $('map-gate').classList.add('hidden'); if (!state.mapEnabled) $('map-caption').textContent = '온라인 지도 꺼짐 · 동의한 친구의 좌표만 표시해요'; },
+  showSharedMap:() => { $('map-gate').classList.add('hidden'); if (!state.mapEnabled) $('map-caption').textContent = '온라인 지도 꺼짐 / 동의한 친구의 좌표만 표시해요'; },
   selectDestination:(point,name) => { if (state.demo) exitDemo(); setDestination(point,name,'친구와의 약속 장소'); fitMap(); }
 });
 

@@ -114,3 +114,14 @@
 .pace-app .route-comparison{margin:16px 0;padding:18px;border:1px solid #86948a55;border-radius:20px}.pace-app .route-comparison h3,.pace-app .route-comparison h4{margin:0 0 10px}.pace-app .route-options{display:grid;gap:10px;margin:14px 0}.pace-app .route-option{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:8px;width:100%;padding:16px;border:1px solid #86948a66;border-radius:14px;background:transparent;color:inherit;white-space:normal;line-height:1.5}.pace-app .route-option[aria-pressed=true]{border:2px solid #71d6aa;background:#71d6aa15}.pace-app .route-option span,.pace-app .route-option small{font-size:12px}.pace-app .transit-unavailable{border-radius:14px;background:#86948a15;padding:14px;margin-bottom:22px}.pace-app .transit-unavailable p{font-size:12px;line-height:1.7;margin-bottom:0}
 
 .navigation-card{padding:20px;margin:16px 0;border:1px solid #3dd9a880;border-radius:20px;background:var(--panel,#122534)}.navigation-card p{font-size:1.15rem;line-height:1.55;margin:12px 0}.navigation-card small{display:block;line-height:1.6;opacity:.75}
+
+/* Keep GPS recovery and pace editing reachable without fixed action overlays. */
+.gps-recovery{margin:16px 0;padding:16px;border:1px solid #e8bb68;border-radius:18px;background:var(--ob-card);line-height:1.6}
+.gps-recovery p{margin:0 0 12px}.gps-recovery button{min-height:48px;margin:4px 0;width:100%;white-space:normal}
+#onboarding-progress{display:block;width:100%;height:10px;margin:12px 0 4px;accent-color:var(--ob-green)}
+#onboarding-progress-label{display:block;margin-top:18px;font-size:14px;color:var(--ob-muted)}
+.onboarding #onboarding-map{font-size:14px}.onboarding .ob-actions button{min-height:52px}
+.onboarding #manual-pace-form{margin-top:16px}.onboarding #manual-pace-form button{white-space:normal;min-height:48px}
+.onboarding #onboarding-start:not(.hidden)~#onboarding-finish:not(.hidden){margin-top:0}
+#edit-pace{min-height:44px;margin:-6px 0 12px;padding-left:0}
+@media(max-width:760px){.onboarding .ob-mini-map{height:clamp(280px,42svh,400px)}.onboarding .ob-feedback,.onboarding .ob-copy,.onboarding .ob-help{font-size:14px}.onboarding .ob-text{font-size:14px;min-height:44px}.pace-app .gps-recovery{font-size:14px}}

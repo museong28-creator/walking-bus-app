@@ -12,8 +12,8 @@
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="assets/vendor/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=pace-19">
-  <title>몇분 걸음 · 나의 속도로 도착하기</title>
+  <link rel="stylesheet" href="styles.css?v=pace-20">
+  <title>몇분 걸음 / 나의 속도로 도착하기</title>
 </head>
 <body class="pace-app onboarding">
   <header class="header">
@@ -37,9 +37,9 @@
         <button id="offline-demo" class="text-button">데이터 없이 체험하기</button>
         <small id="map-provider-consent">지도를 켜면 화면에 보이는 지역과 IP가<br>OpenStreetMap 지도 서버에 전달돼요.</small>
       </div>
-      <div class="map-caption" id="map-caption">초기 지도: 서울 시청 · 현재 위치가 아니에요</div>
-      <div class="map-tools" role="group" aria-label="지도에서 지정할 지점"><button id="set-start" aria-pressed="false" title="지도를 눌러 출발지 지정">출발지 지정</button><button id="set-destination" aria-pressed="true" title="지도를 눌러 목적지 지정">목적지 지정</button><button id="map-stops" title="주변 정류장 찾기 · 실시간 버스 미연결">▣ 정류장</button><button id="fit-map" title="출발지와 목적지 함께 보기" aria-label="전체 경로 보기">⛶</button></div>
-      <div id="demo-banner" class="demo-banner hidden">체험 모드 · 가상 위치와 가상 경로 <button id="exit-demo">종료</button></div>
+      <div class="map-caption" id="map-caption">초기 지도: 서울 시청 / 현재 위치가 아니에요</div>
+      <div class="map-tools" role="group" aria-label="지도에서 지정할 지점"><button id="set-start" aria-pressed="false" title="지도를 눌러 출발지 지정">출발지 지정</button><button id="set-destination" aria-pressed="true" title="지도를 눌러 목적지 지정">목적지 지정</button><button id="map-stops" title="주변 정류장 찾기 / 실시간 버스 미연결">▣ 정류장</button><button id="fit-map" title="출발지와 목적지 함께 보기" aria-label="전체 경로 보기">⛶</button></div>
+      <div id="demo-banner" class="demo-banner hidden">체험 모드 / 가상 위치와 가상 경로 <button id="exit-demo">종료</button></div>
       <div class="map-tip" id="map-tip">지도를 눌러 목적지를 정하세요</div>
     </section>
 
@@ -50,25 +50,30 @@
         <p class="ob-eyebrow">EVERY WALK, YOUR PACE</p>
         <h1 id="onboarding-title">내 걸음으로,<br>더 정확한 도착.</h1>
         <p id="onboarding-copy" class="ob-copy">먼저 내 위치를 찾고, 평소처럼 걸어보세요.<br>나만의 속도로 목적지까지의 시간을 알아봐요.</p>
-        <p id="onboarding-map-status" class="ob-feedback" role="status">GPS 측정과 지도 연결은 별개예요. 지도를 보려면 아래 버튼을 눌러 주세요.</p>
-        <button id="onboarding-map" class="ob-primary ob-map-toggle">지도 켜고 내 위치 보기</button>
+        <p id="onboarding-map-status" class="ob-feedback" role="status">아래 버튼으로 지도와 현재 위치를 확인한 뒤 걷는 속도를 측정해 주세요.</p>
+        <button id="onboarding-map" class="ob-primary ob-map-toggle">지도 켜고 내 위치 확인</button>
         <div id="onboarding-map-view" class="ob-mini-map hidden" aria-label="측정한 내 위치 지도"></div>
+        <div id="onboarding-recovery" class="gps-recovery hidden" role="status"><p id="onboarding-problem"></p><button id="onboarding-retry" class="secondary">위치와 속도 다시 측정</button><button id="onboarding-manual" class="text-button">속도 직접 입력</button></div>
         <div class="ob-meter">
           <span id="onboarding-status" class="ob-status" role="status">● 측정 준비</span>
           <div class="ob-ring"><span id="onboarding-speed-label">나의 보행 속도</span><div><strong id="onboarding-speed">—</strong><small>km/h</small></div><span id="onboarding-pace">아직 측정하지 않았어요</span></div>
           <div class="ob-metrics"><div><span>측정 시간</span><strong id="onboarding-time">00:00</strong></div><div><span>위치 정확도</span><strong id="onboarding-accuracy">—</strong></div></div>
+          <label id="onboarding-progress-label" for="onboarding-progress">사용 가능한 보행 표본 0 / 30초</label><progress id="onboarding-progress" max="30" value="0"></progress>
         </div>
         <div id="onboarding-feedback" class="ob-feedback" role="status" aria-live="polite">위치 권한은 아래 버튼을 누른 뒤 요청해요. 완료한 보행 속도만 이 기기에 저장해 다음 방문에도 사용해요. GPS 이동 기록은 저장하지 않아요.</div>
         <p class="ob-phone">▣ iPhone에서는 화면을 켜 두세요. 화면을 잠그거나 다른 앱으로 이동하면 측정이 중지돼요.</p>
         <div class="ob-actions">
-        <button id="onboarding-start" class="ob-primary">◎ 내 위치 측정하기</button>
-        <button id="onboarding-finish" class="ob-primary hidden" disabled>측정 완료하고 이 속도 사용하기</button>
+        <button id="onboarding-start" class="ob-primary">걷는 속도 측정 시작</button>
+        <button id="onboarding-finish" class="ob-primary hidden" disabled>이 속도 사용하기</button>
         </div>
         <div class="ob-bottom"><button id="onboarding-stop" class="ob-text hidden">측정 중지</button><button id="onboarding-skip" class="ob-text">나중에 측정하고 지도 보기 →</button></div>
+        <details id="manual-pace-details" class="ob-help"><summary>속도를 직접 입력할게요</summary><form id="manual-pace-form" class="stack-form"><label for="manual-pace">내 보행 속도 (km/h)</label><input id="manual-pace" type="number" inputmode="decimal" min="1.5" max="7" step="0.1" value="4.3" required><button class="secondary" type="submit">이 속도 저장하고 목적지 선택</button><p>1.5~7.0 km/h를 입력할 수 있어요. 직접 입력한 값으로 표시하며 다음 방문에도 사용해요.</p></form></details>
         <details class="ob-help"><summary>측정은 어떻게 하나요?</summary><p>탁 트인 곳에서 평소 속도로 걸어주세요. 정확한 GPS와 최소 30초 동안의 여러 보행 표본이 모이면 적용할 수 있어요. 1~2분 정도 걸으면 비교하기 좋아요. 멈춤, 낮은 정확도, 오래된 신호는 속도 결과에 사용하지 않아요. GPS 추정치이므로 실제 속도와 차이가 날 수 있어요.</p></details>
       </section>
-      <div class="panel-intro"><div><p class="eyebrow">03 DESTINATION</p><h2>오늘은 어디로 걸을까요?</h2></div><span class="walking-symbol" aria-hidden="true">↗</span></div><p id="journey-pace-note" class="pace-summary" role="status">기본 속도 4.3 km/h · 아직 측정하지 않았어요</p>
+      <div class="panel-intro"><div><p class="eyebrow">03 DESTINATION</p><h2>오늘은 어디로 걸을까요?</h2></div><span class="walking-symbol" aria-hidden="true">↗</span></div><p id="journey-pace-note" class="pace-summary" role="status">기본 속도 4.3 km/h / 아직 측정하지 않았어요</p>
+      <button id="edit-pace" class="text-button">저장 속도 직접 바꾸기</button>
       <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
+      <div id="gps-recovery" class="gps-recovery hidden" role="status"><p id="gps-problem"></p><button id="gps-retry" class="secondary">GPS 다시 시도</button><button id="gps-use-saved" class="secondary">마지막 위치와 저장 속도 사용</button></div>
       <section class="destination-card" aria-label="선택한 목적지">
         <div class="destination-icon" aria-hidden="true">◎</div><div class="destination-copy"><p class="label">목적지</p><h3 id="destination-name">지도에서 목적지를 선택해 주세요</h3><p class="muted" id="destination-detail">장소 검색이나 좌표 입력도 가능해요</p></div><button id="clear-destination" class="icon-button hidden" aria-label="목적지 지우기">×</button>
       </section>
@@ -85,15 +90,15 @@
         <h3 id="route-comparison-title">어떻게 갈까요?</h3>
         <p id="route-comparison-note" class="microcopy"></p>
         <div id="route-options" class="route-options"></div>
-        <div class="transit-unavailable"><strong>버스 + 도보 · 연결 필요</strong><p>버스 노선·환승 경로 API가 아직 연결되지 않아 총 이동시간을 계산할 수 없어요. 정류장 위치만으로 버스 경로를 만들지 않아요.</p></div>
-        <h4>가로등 등록 정보 · 밝기 미확인</h4><p class="microcopy">실제 밝기 자료는 없어요. 선택적으로 지도에 등록된 가로등 수만 확인할 수 있어요. 가로등 수로 밝거나 안전한 길을 추천하지 않아요.</p>
+        <div class="transit-unavailable"><strong>버스 + 도보 / 연결 필요</strong><p>버스 노선/환승 경로 API가 아직 연결되지 않아 총 이동시간을 계산할 수 없어요. 정류장 위치만으로 버스 경로를 만들지 않아요.</p></div>
+        <h4>가로등 등록 정보 / 밝기 미확인</h4><p class="microcopy">실제 밝기 자료는 없어요. 선택적으로 지도에 등록된 가로등 수만 확인할 수 있어요. 가로등 수로 밝거나 안전한 길을 추천하지 않아요.</p>
         <button id="lamp-button" class="secondary wide" disabled>등록 가로등 비교하기</button>
         <p id="lamp-status" class="microcopy" role="status"></p>
       </section>
       <section id="walking-navigation" class="navigation-card hidden" aria-label="도보 길 안내">
-        <strong>도보 길 안내 · 베타</strong>
+        <strong>도보 길 안내 / 베타</strong>
         <p id="navigation-direction" aria-live="polite"></p>
-        <small>경로 기준 방향이며 휴대폰이 향한 방향이 아니에요. GPS 오차·겹치는 길에서는 잘못 안내될 수 있어요. 횡단보도와 현장 표지를 우선 확인하세요. 음성·백그라운드 안내와 자동 재탐색은 지원하지 않아요. iPhone은 화면을 켜 두세요.</small>
+        <small>경로 기준 방향이며 휴대폰이 향한 방향이 아니에요. GPS 오차/겹치는 길에서는 잘못 안내될 수 있어요. 횡단보도와 현장 표지를 우선 확인하세요. 음성/백그라운드 안내와 자동 재탐색은 지원하지 않아요. iPhone은 화면을 켜 두세요.</small>
       </section>
       <p class="estimate-note" id="estimate-note">실제 도보 경로를 찾기 전에는 도착 시간을 표시하지 않아요.</p>
 
@@ -118,7 +123,7 @@
       <details class="journey-tool" id="friends-tools"><summary>♧ 친구와 약속<small>공유 서버 설정 필요</small><span aria-hidden="true">＋</span></summary>      <section class="friends-section" aria-label="친구와 약속">
         <div class="section-heading"><h3>♧ 친구와 함께 만나요</h3><span class="outline-tag" id="sharing-badge">서버 설정 필요</span></div>
         <p class="section-description">이번 약속에 친구를 초대해요.<br>친구가 직접 동의한 실제 위치만 지도에 표시해요.</p>
-        <div class="privacy-pill">위치 공유는 기본 꺼짐 · 언제든 중지</div>
+        <div class="privacy-pill">위치 공유는 기본 꺼짐 / 언제든 중지</div>
         <div id="room-setup">
           <details class="connection-settings" open><summary>공유 서버 연결</summary><div class="stack-form"><label for="sharing-server">내가 운영하거나 신뢰하는 HTTPS 서버</label><input id="sharing-server" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://my-meeting-server.example"><p class="microcopy">GitHub Pages만으로 기기 간 공유는 되지 않아요. 포함된 서버를 별도로 배포해야 해요. 아직 어떤 서버에도 연결하지 않았어요.</p></div></details>
           <div class="stack-form"><label for="friend-name">친구들에게 보여 줄 이름</label><input id="friend-name" maxlength="24" autocomplete="off" placeholder="예: 지민"><button id="create-room" class="secondary wide">선택한 목적지로 약속 만들기 ↗</button></div>
@@ -135,11 +140,11 @@
           <ul id="friends-list" class="friends-list" aria-label="약속 참여자"></ul>
           <div class="form-actions"><button id="leave-room" class="text-button">약속방 나가기</button><button id="close-room" class="text-button danger hidden">모두의 약속방 종료</button></div>
         </div>
-        <p class="microcopy">화면 잠금·앱 전환 시 내 공유를 중지해요. 30초 넘은 위치는 오래된 정보로 표시하고 90초 후 숨겨요. 마지막 위치만 임시 보관하며, 친구의 이동 경로를 기록하지 않아요.</p>
+        <p class="microcopy">화면 잠금/앱 전환 시 내 공유를 중지해요. 30초 넘은 위치는 오래된 정보로 표시하고 90초 후 숨겨요. 마지막 위치만 임시 보관하며, 친구의 이동 경로를 기록하지 않아요.</p>
       </section>
       </details>
 
-      <details class="journey-tool" id="bus-tools"><summary>▣ 버스 시간 비교<small>실시간 미연결 · 직접 입력</small><span aria-hidden="true">＋</span></summary>      <section class="bus-section" aria-label="버스 연결">
+      <details class="journey-tool" id="bus-tools"><summary>▣ 버스 시간 비교<small>실시간 미연결 / 직접 입력</small><span aria-hidden="true">＋</span></summary>      <section class="bus-section" aria-label="버스 연결">
         <div class="section-heading"><h3><span aria-hidden="true">▣</span> 버스까지 이어서</h3><span class="outline-tag">실시간 미연결</span></div>
         <p>근처 정류장을 목적지로 정하고,<br>알고 있는 버스 도착 시간과 비교해 보세요.</p>
         <button class="secondary wide" id="stops-button">주변 700m 정류장 찾기 <span aria-hidden="true">↗</span></button>
@@ -153,14 +158,14 @@
       </section>
       </details>
 
-      <details class="settings"><summary>속도 설정과 이용 안내 <span aria-hidden="true">+</span></summary>
+      <details class="settings" id="speed-settings"><summary>속도 설정과 이용 안내 <span aria-hidden="true">+</span></summary>
         <div class="settings-content">
-          <label for="base-speed">GPS 측정 전 기본 속도 <strong id="base-speed-value">4.3 km/h</strong></label>
-          <input type="range" id="base-speed" min="2" max="7" step="0.1" value="4.3">
+          <label for="base-speed">이 기기에 저장할 보행 속도 <strong id="base-speed-value">4.3 km/h</strong></label>
+          <input type="range" id="base-speed" min="1.5" max="7" step="0.1" value="4.3">
           <p>실제 속도는 최근 GPS 측정값을 완만하게 반영해요. 정지하면 ETA도 멈추고, 위치가 부정확하면 표시를 보류해요.</p>
           <p><b>iPhone Safari:</b> HTTPS에서 위치 권한을 허용해 주세요. 화면 잠금이나 앱 전환 시 걷기 측정이 일시 중지돼요. 다시 열어 시작 버튼을 눌러 주세요.</p>
           <p><b>공개 데이터:</b> 장소 검색은 Kakao, 도보 경로는 FOSSGIS, 정류장 검색은 Overpass를 사용해요. 요청 전에 전송 내용을 안내해요. 무료 공용 서비스는 느리거나 중단될 수 있고 보행로가 누락될 수 있어요.</p>
-          <p>신호 대기·경사·교통 상황은 반영하지 않아요. 실제 표지판과 안전을 우선하고, 길을 건널 때는 화면을 보지 마세요.</p>
+          <p>신호 대기/경사/교통 상황은 반영하지 않아요. 실제 표지판과 안전을 우선하고, 길을 건널 때는 화면을 보지 마세요.</p>
           <button id="disable-map" class="text-button">온라인 지도 끄기</button>
           <p><a href="docs/PRIVACY.md" target="_blank" rel="noopener">개인정보 및 외부 서비스 안내 ↗</a></p>
         </div>
@@ -169,18 +174,18 @@
     </aside>
   </main>
 
-  <dialog id="stop-dialog" aria-labelledby="stop-name"><div class="dialog-content"><span class="outline-tag">실시간 미연결</span><h2 id="stop-name">정류장 정보</h2><p id="stop-detail"></p><p>지나가는 버스 노선·도착 예정 시간·운행 중인 버스 위치는 아직 제공하지 않아요.</p><p class="microcopy">지도에서 보이는 정류장은 OpenStreetMap에 등록된 실제 데이터예요. 누락되거나 오래된 정보가 있을 수 있으며, 반대편 정류장과 탑승 방향을 확인해 주세요.</p><div class="dialog-actions"><button id="stop-walk" class="primary">이 정류장까지 걸어가기</button><button id="stop-close" class="secondary">닫기</button></div></div></dialog>
+  <dialog id="stop-dialog" aria-labelledby="stop-name"><div class="dialog-content"><span class="outline-tag">실시간 미연결</span><h2 id="stop-name">정류장 정보</h2><p id="stop-detail"></p><p>지나가는 버스 노선/도착 예정 시간/운행 중인 버스 위치는 아직 제공하지 않아요.</p><p class="microcopy">지도에서 보이는 정류장은 OpenStreetMap에 등록된 실제 데이터예요. 누락되거나 오래된 정보가 있을 수 있으며, 반대편 정류장과 탑승 방향을 확인해 주세요.</p><div class="dialog-actions"><button id="stop-walk" class="primary">이 정류장까지 걸어가기</button><button id="stop-close" class="secondary">닫기</button></div></div></dialog>
   <dialog id="consent-dialog" aria-labelledby="consent-title"><div class="dialog-content"><span class="consent-icon" aria-hidden="true">↗</span><h2 id="consent-title">외부 서비스 연결</h2><p id="consent-copy"></p><p class="microcopy" id="consent-footnote">이 요청을 진행할 때만 연결해요. GPS 이동 기록은 저장하지 않아요.</p><div class="dialog-actions"><button id="consent-cancel" class="secondary">취소</button><button id="consent-allow" class="primary">동의하고 연결</button></div></div></dialog>
   <dialog id="account-dialog" aria-labelledby="account-title"><div class="dialog-content account-content">
     <h2 id="account-title">몇분 걸음 계정</h2>
-    <p>Google 로그인은 실시간 정보의 안전한 이용을 준비하기 위한 기능이에요. 지금은 로그인만 연결하며, 버스·카카오 도보 정보는 아직 활성화되지 않았어요.</p>
-    <p class="microcopy">로그인 준비를 누르면 Google/Firebase에 연결돼요. 로그인하면 이름·이메일·계정 ID가 이 앱의 Firebase 인증에 제공돼요. 위치는 로그인 과정에서 보내지 않아요. 로그인은 이 브라우저 탭 세션에만 유지돼요.</p>
-    <section id="account-identity" hidden><strong id="account-name"></strong><label for="account-uid">계정 ID · 초기 이용 권한 설정용</label><input id="account-uid" readonly autocomplete="off" spellcheck="false"><button id="account-copy" class="secondary">계정 ID 복사</button><p class="microcopy">직원1 채팅에 이 ID만 보내 주세요. 비밀번호·인증 토큰은 필요하지 않아요.</p></section>
+    <p>Google 로그인은 실시간 정보의 안전한 이용을 준비하기 위한 기능이에요. 지금은 로그인만 연결하며, 버스/카카오 도보 정보는 아직 활성화되지 않았어요.</p>
+    <p class="microcopy">로그인 준비를 누르면 Google/Firebase에 연결돼요. 로그인하면 이름/이메일/계정 ID가 이 앱의 Firebase 인증에 제공돼요. 위치는 로그인 과정에서 보내지 않아요. 로그인은 이 브라우저 탭 세션에만 유지돼요.</p>
+    <section id="account-identity" hidden><strong id="account-name"></strong><label for="account-uid">계정 ID / 초기 이용 권한 설정용</label><input id="account-uid" readonly autocomplete="off" spellcheck="false"><button id="account-copy" class="secondary">계정 ID 복사</button><p class="microcopy">직원1 채팅에 이 ID만 보내 주세요. 비밀번호/인증 토큰은 필요하지 않아요.</p></section>
     <p class="microcopy">서버 보호 연결 확인을 누르면 인증 토큰과 계정 ID를 이 앱의 Render 서버로 보내고 Firebase 사용량 한도에 1회를 기록해요. 위치나 버스 정보는 요청하지 않아요.</p>    <p id="account-status" role="status" aria-live="polite">로그인 없이도 기존 지도와 보행 측정을 이용할 수 있어요.</p>
 <div class="account-actions"><button id="account-check" class="primary" hidden>서버 보호 연결 확인</button><button id="account-prepare" class="primary">동의하고 로그인 준비</button><button id="account-login" class="primary" hidden>Google 계정 선택</button><button id="account-logout" class="secondary" hidden>로그아웃</button><button id="account-close" class="secondary">닫기</button></div>
   </div></dialog>
   <script src="assets/vendor/leaflet.js"></script>
-  <script type="module" src="src/app.js?v=pace-19"></script>
+  <script type="module" src="src/app.js?v=pace-20"></script>
 </body>
 </html>
 

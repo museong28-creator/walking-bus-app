@@ -8,7 +8,7 @@ import * as sharing from '../src/sharing.js';
 import {isCoordinate,distance} from '../src/core.js';
 
 const source = (await readFile(new URL('../src/meetup-ui.js',import.meta.url),'utf8'))
-  .replace(/^import .*;\n/gm,'').replace('export function initMeetupUI','function initMeetupUI')
+  .replace(/^import .*;\r?\n/gm,'').replace('export function initMeetupUI','function initMeetupUI')
   + '\nglobalThis.initialize = initMeetupUI;';
 const ROOM = 'room_0123456789abcdef', SELF = 'self_0123456789abcdef', FRIEND = 'friend_0123456789abcdef';
 const TOKEN = 'token_0123456789abcdef', INVITE = 'invite_0123456789abcdef', EPOCH = 'epoch_0123456789abcdef';
