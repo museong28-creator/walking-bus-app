@@ -1,5 +1,5 @@
 import {createAccountSession} from './firebase-session.js';
-import {createAuthenticatedNavigationClient} from './navigation-client.js?v=auth-11';
+import {createAuthenticatedNavigationClient} from './navigation-client.js?v=pace-22';
 export function initAccountUI({document:doc=document,session=createAccountSession(),clipboard=globalThis.navigator?.clipboard,navigation}={}){
   const $=id=>doc.getElementById(id),dialog=$('account-dialog');let busy=false,checking=false;
   navigation??=createAuthenticatedNavigationClient(session);
@@ -25,7 +25,7 @@ export function initAccountUI({document:doc=document,session=createAccountSessio
     if(busy)return;busy=true;render();
     try{await action();}catch(error){status(errors(error));}finally{busy=false;render();}
   };
-  session.subscribe(user=>{render();if(user)status('Google 로그인 완료. 실시간 버스·카카오 도보 정보는 아직 준비 중이에요.');});
+  session.subscribe(user=>{render();if(user)status('Google 로그인 완료. 대구대(정문1) 894번은 버스 시간 비교에서 조회하세요.');});
   $('account-button').addEventListener('click',()=>{if(!dialog.open)dialog.showModal();});
   $('account-close').addEventListener('click',()=>dialog.close());
   $('account-prepare').addEventListener('click',()=>perform(async()=>{status('Google 로그인 연결을 준비 중이에요…');await session.prepare();if(!session.user)status('준비됐어요. 아래 버튼을 눌러 Google 계정을 선택해 주세요.');}));
@@ -34,7 +34,7 @@ export function initAccountUI({document:doc=document,session=createAccountSessio
   $('account-check').addEventListener('click',()=>perform(async()=>{
     checking=true;render();
     status('서버 인증과 사용량 저장을 확인 중이에요. 무료 서버가 쉬고 있으면 잠시 걸릴 수 있어요…');
-    try{await navigation.sessionCheck();status('서버 인증과 사용량 저장 확인 완료. 확인 요청 1회가 한도에 기록됐어요. 실시간 버스·카카오 도보 정보는 아직 준비 중이에요.');}
+    try{await navigation.sessionCheck();status('서버 인증과 사용량 저장 확인 완료. 확인 요청 1회가 한도에 기록됐어요. 대구대(정문1) 894번은 버스 시간 비교에서 조회하세요.');}
     catch(error){
       const messages={AUTH_REQUIRED:'Google 로그인이 만료됐어요. 로그아웃 후 다시 로그인해 주세요.',ACCESS_DENIED:'이 계정의 서버 이용 권한을 확인해야 해요. 직원1에게 알려 주세요.',RATE_LIMITED:'조회 한도에 도달했어요. 잠시 후 다시 시도해 주세요.',UNAVAILABLE:'서버의 인증 또는 사용량 저장 설정을 확인해야 해요. 직원1에게 알려 주세요.'};
       status(messages[error?.code]||(error?.name==='AbortError'?'연결 확인 시간이 초과됐어요. 무료 서버가 시작 중일 수 있어요. 잠시 후 다시 눌러 주세요.':'서버에 연결하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.'));

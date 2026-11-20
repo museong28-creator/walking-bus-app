@@ -1,5 +1,6 @@
 import {nextManeuver} from './navigation.js?v=pace-20';
-import {initAccountUI} from './account-ui.js?v=auth-11';
+import {initAccountUI} from './account-ui.js?v=pace-22';
+import {initBusPilot, PILOT_STOP} from './bus-pilot.js?v=pace-22';
 import {DEFAULT_SPEED, SpeedTracker, distance, pathDistance, projectOnRoute, etaSeconds, catchStatus, parseCoordinates} from './core.js?v=pace-20';
 import {SERVICES, getWalkingRoute, getWalkingRoutes, getRouteLamps, searchPlaces, getNearbyStops} from './services.js?v=pace-20';
 import {initMeetupUI} from './meetup-ui.js';
@@ -112,7 +113,7 @@ const state = {start:null, position:null, destination:null, route:null, routes:[
   speedOrigin:'default', baseSpeed:4.3 / 3.6, mapEnabled:false, pickingStart:false, demo:false, demoProgress:0, demoSpeed:DEFAULT_SPEED,
   busArrival:null, requestEpoch:0, routeBusy:false, stopBusy:false, lastGoodFix:0, trackingStarted:0, gpsIssue:'', wakeLock:null};
 let routeController, searchController, stopController, lampController, pendingConsent;
-let meetingUI = null;
+let meetingUI = null, busPilotUI = null;
 let lastTick = Date.now();
 
 const map = mapAPI.map('map', {zoomControl:false, attributionControl:true}).setView([37.5665,126.9780],15);
@@ -121,6 +122,7 @@ const tiles = mapAPI.tileLayer(SERVICES.tiles, {maxZoom:19, attribution:'© <a h
 const pathLayer = mapAPI.layerGroup().addTo(map), markerLayer = mapAPI.layerGroup().addTo(map), stopLayer = mapAPI.layerGroup().addTo(map);
 const calibrationMap = mapAPI.map('onboarding-map-view',{zoomControl:false,attributionControl:true}).setView([37.5665,126.9780],15);
 const calibrationLayer = mapAPI.layerGroup().addTo(calibrationMap);
+const pilotLayer = mapAPI.layerGroup().addTo(map);
 const calibrationTiles = mapAPI.tileLayer(SERVICES.tiles,{maxZoom:19,attribution:'© OpenStreetMap contributors'});
 function refreshMaps() {
   const refresh = () => { map.invalidateSize?.(); calibrationMap.invalidateSize?.(); };
@@ -598,7 +600,7 @@ $('lamp-button').addEventListener('click',async()=>{
 });
 
 function render() {
-  renderCalibration(); renderComparison();
+  renderCalibration(); renderComparison(); busPilotUI?.render();
   const now = Date.now(), e = estimate(now);
   $('gps-recovery').classList.toggle('hidden', !state.gpsIssue);
   $('gps-problem').textContent = state.gpsIssue;
@@ -725,6 +727,24 @@ meetingUI = initMeetupUI({map,L:mapAPI,askConsent,notice,formatTime,
   requestGps:startTracking,
   showSharedMap:() => { $('map-gate').classList.add('hidden'); if (!state.mapEnabled) $('map-caption').textContent = '온라인 지도 꺼짐 / 동의한 친구의 좌표만 표시해요'; },
   selectDestination:(point,name) => { if (state.demo) exitDemo(); setDestination(point,name,'친구와의 약속 장소'); fitMap(); }
+});
+
+busPilotUI = initBusPilot({session:accountSession,
+  getContext:()=>({...state,estimate:estimate(Date.now())}),
+  showStop:async stop=>{
+    if(state.demo){notice('체험을 종료한 뒤 실제 정류장을 확인해 주세요.');return;}
+    if(!state.mapEnabled){
+      if(!(await askConsent('정류장 지도 보기', `${mapProvider} 지도 서버에 정류장이 있는 지역과 IP를 보내요. 현재 GPS 위치는 보내지 않아요.`)))return;
+      enableMap();
+    }
+    pilotLayer.clearLayers();
+    marker(stop.point,'stop',`${stop.name} / 894번 실제 도착정보`).on('click',()=>{
+      $('bus-tools').open=true;$('pilot-card').scrollIntoView?.({behavior:'smooth',block:'center'});
+    }).addTo(pilotLayer);
+    map.setView(stop.point,17);$('map').scrollIntoView?.({behavior:'smooth',block:'start'});
+    $('map-caption').textContent='대구대(정문1) / 공식 정류소 05633 / 현재 위치가 아니에요';
+  },
+  selectStop:stop=>{setDestination([...stop.point],stop.name,'TAGO 공식 정류장');fitMap();}
 });
 
 if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('./sw.js').catch(() => {});
