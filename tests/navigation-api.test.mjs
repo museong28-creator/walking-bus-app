@@ -101,3 +101,24 @@ test('authenticated session check reserves durable quota without provider keys o
  assert.equal(uid,'owner');assert.equal(calls,0);
  const locked=createNavigationService();await assert.rejects(locked.request('/v1/session'),{code:'SECURITY_NOT_CONFIGURED'});
 });
+
+test('behind a proxy each visitor gets a separate rate limit instead of one bucket for everyone',async t=>{
+  const start=async options=>{
+    const server=createNavigationServer({authorize:async()=>({uid:'test-user'}),allowedOrigins:['https://example.test'],service:{request:async()=>({ok:true})},...options});
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
+    const base=`http://127.0.0.1:${server.address().port}`;
+    return visitor=>fetch(base+'/v1/session',{method:'POST',headers:{Origin:'https://example.test','Content-Type':'application/json','X-Forwarded-For':visitor},body:'{}'}).then(r=>r.status);
+  };
+  // Every socket comes from the same proxy address (here: loopback).
+  const proxied=await start({trustedProxyHops:1});
+  for(let i=0;i<20;i++)assert.equal(await proxied('198.51.100.1'),200);
+  assert.equal(await proxied('198.51.100.1'),429);
+  // A different visitor is unaffected, and a forged left-most entry does not grant a new bucket.
+  assert.equal(await proxied('198.51.100.2'),200);
+  assert.equal(await proxied('9.9.9.9, 198.51.100.1'),429);
+  // Without a declared proxy the header is ignored: one shared, unspoofable bucket.
+  const direct=await start({});
+  for(let i=0;i<20;i++)assert.equal(await direct(`198.51.100.${i}`),200);
+  assert.equal(await direct('198.51.100.200'),429);
+  assert.throws(()=>createNavigationServer({trustedProxyHops:'many'}));
+});

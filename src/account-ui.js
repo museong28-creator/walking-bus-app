@@ -1,5 +1,5 @@
 import {createAccountSession} from './firebase-session.js';
-import {createAuthenticatedNavigationClient} from './navigation-client.js?v=pace-22';
+import {createAuthenticatedNavigationClient} from './navigation-client.js';
 export function initAccountUI({document:doc=document,session=createAccountSession(),clipboard=globalThis.navigator?.clipboard,navigation}={}){
   const $=id=>doc.getElementById(id),dialog=$('account-dialog');let busy=false,checking=false;
   navigation??=createAuthenticatedNavigationClient(session);

@@ -3,6 +3,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { isIP } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { clientIp, normalizeIp, proxyHops } from './client-ip.mjs';
 
 export const MAX_ROOM_TTL_MS = 24 * 60 * 60 * 1000;
 export const STALE_AFTER_MS = 30_000;
@@ -29,7 +30,6 @@ const sameCredential = (supplied, expectedDigest) => {
   const actual = digest(typeof supplied === 'string' ? supplied : '');
   return timingSafeEqual(actual, expectedDigest) && typeof supplied === 'string' && TOKEN_PATTERN.test(supplied);
 };
-const normalizeIp = value => String(value ?? '').replace(/^::ffff:/, '');
 const loopbackIp = value => ['127.0.0.1', '::1'].includes(normalizeIp(value));
 const localhostHost = value => /^(localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/i.test(value ?? '');
 const validInteger = (value, min, max) => Number.isSafeInteger(value) && value >= min && value <= max;
@@ -120,6 +120,7 @@ export function createMeetingServer(options = {}) {
     if (!isIP(value)) throw new Error('trustedProxyIps must contain exact IP addresses.');
     return normalizeIp(value);
   }));
+  const trustedProxyHops = proxyHops(options.trustedProxyHops);
   const rooms = new Map();
   const rateBuckets = new Map();
   const limits = {
@@ -204,8 +205,11 @@ export function createMeetingServer(options = {}) {
       const atBeforeRead = now();
       sweep(atBeforeRead);
       const peerIp = normalizeIp(req.socket.remoteAddress);
-      limit(`ip:${peerIp}`, limits.requestsPerMinute, 60_000, atBeforeRead);
-      const proxyHttps = trustedProxyIps.has(peerIp) && req.headers['x-forwarded-proto'] === 'https';
+      const viaProxy = trustedProxyHops > 0 || trustedProxyIps.has(peerIp);
+      // Limit each visitor separately, also when every socket belongs to the platform proxy.
+      const visitorIp = viaProxy ? clientIp(req, trustedProxyHops || 1) : peerIp;
+      limit(`ip:${visitorIp}`, limits.requestsPerMinute, 60_000, atBeforeRead);
+      const proxyHttps = viaProxy && req.headers['x-forwarded-proto'] === 'https';
       const directLocal = loopbackIp(peerIp) && localhostHost(req.headers.host);
       if (!(req.socket.encrypted || proxyHttps || directLocal)) fail(426, 'https_required', 'Use HTTPS through a trusted reverse proxy.');
       const origin = req.headers.origin;
@@ -227,7 +231,7 @@ export function createMeetingServer(options = {}) {
       const at = now();
       sweep(at); // Recheck after body read: expiry or stop may have happened while this request was pending.
       if (req.url === '/api/rooms/create') {
-        limit(`create:${peerIp}`, limits.createsPerHour, 3_600_000, at);
+        limit(`create:${visitorIp}`, limits.createsPerHour, 3_600_000, at);
         if (rooms.size >= maxRooms) fail(503, 'room_capacity', 'The server cannot create another room right now.');
         const displayName = textValue(body.displayName, 24, 'displayName');
         if (!object(body.destination)) fail(400, 'invalid_input', 'destination is required.');
@@ -242,7 +246,7 @@ export function createMeetingServer(options = {}) {
       }
       const room = roomFor(body);
       if (req.url === '/api/rooms/join') {
-        limit(`join:${peerIp}`, limits.joinsPerMinute, 60_000, at);
+        limit(`join:${visitorIp}`, limits.joinsPerMinute, 60_000, at);
         if (!sameCredential(bearer(req), room.inviteDigest)) fail(401, 'unauthorized', 'A valid invitation is required.');
         const displayName = textValue(body.displayName, 24, 'displayName');
         if (room.members.size >= 8) fail(409, 'room_full', 'This room already has eight participants.');
@@ -332,6 +336,7 @@ export function configFromEnv(env = process.env) {
     maxRooms: number('MAX_ROOMS', 1_000),
     allowedOrigins: env.ALLOWED_ORIGINS === undefined ? DEFAULT_ORIGINS : env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean),
     trustedProxyIps: (env.TRUSTED_PROXY_IPS ?? '').split(',').map(s => s.trim()).filter(Boolean),
+    trustedProxyHops: proxyHops(env.TRUSTED_PROXY_HOPS, 'TRUSTED_PROXY_HOPS'),
   };
 }
 

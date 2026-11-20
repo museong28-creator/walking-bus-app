@@ -1,10 +1,10 @@
-import {nextManeuver} from './navigation.js?v=pace-20';
-import {initAccountUI} from './account-ui.js?v=pace-22';
-import {initBusPilot, PILOT_STOP} from './bus-pilot.js?v=pace-22';
-import {DEFAULT_SPEED, SpeedTracker, distance, pathDistance, projectOnRoute, etaSeconds, catchStatus, parseCoordinates} from './core.js?v=pace-20';
-import {SERVICES, getWalkingRoute, getWalkingRoutes, getRouteLamps, searchPlaces, getNearbyStops} from './services.js?v=pace-20';
+import {nextManeuver} from './navigation.js';
+import {initAccountUI} from './account-ui.js';
+import {initBusPilot, PILOT_STOP} from './bus-pilot.js';
+import {DEFAULT_SPEED, SpeedTracker, distance, pathDistance, projectOnRoute, etaSeconds, catchStatus, parseCoordinates} from './core.js';
+import {SERVICES, getWalkingRoute, getWalkingRoutes, getRouteLamps, searchPlaces, getNearbyStops} from './services.js';
 import {initMeetupUI} from './meetup-ui.js';
-import {createMapAPI} from './map-adapter.js?v=pace-20';
+import {createMapAPI} from './map-adapter.js';
 import {KAKAO_JAVASCRIPT_KEY} from './map-config.js';
 
 const mapAPI = createMapAPI({key:KAKAO_JAVASCRIPT_KEY,leaflet:L});
@@ -112,7 +112,8 @@ $('journey-theme').addEventListener('click', () => document.body?.classList.togg
 const state = {start:null, position:null, destination:null, route:null, routes:[], selectedRoute:0, lampResults:null, lampBusy:false, lampMessage:'등록 가로등 정보는 별도로 조회해요. 실제 밝기/점등 상태는 알 수 없어요.', tracking:false, watchId:null, watchEpoch:0,
   speedOrigin:'default', baseSpeed:4.3 / 3.6, mapEnabled:false, pickingStart:false, demo:false, demoProgress:0, demoSpeed:DEFAULT_SPEED,
   busArrival:null, requestEpoch:0, routeBusy:false, stopBusy:false, lastGoodFix:0, trackingStarted:0, gpsIssue:'', wakeLock:null};
-let routeController, searchController, stopController, lampController, pendingConsent;
+let routeController, searchController, stopController, lampController;
+const consentQueue = [];
 let meetingUI = null, busPilotUI = null;
 let lastTick = Date.now();
 
@@ -169,18 +170,28 @@ function clearRequests() {
   state.routeBusy = false; state.stopBusy = false;
   $('search-button').disabled = false;
   $('search-results').classList.add('hidden');
-  if (pendingConsent) finishConsent(false);
+  while (consentQueue.length) finishConsent(false);
 }
-function askConsent(title, text, footnote = '이 요청을 진행할 때만 연결해요. 이 앱은 GPS 이동 기록을 저장하지 않아요. 외부 서비스의 로그 정책은 별도로 적용돼요.') {
-  if (pendingConsent) return Promise.resolve(false);
+function showConsent() {
+  const {title,text,footnote} = consentQueue[0];
   $('consent-title').textContent = title; $('consent-copy').textContent = text;
   $('consent-footnote').textContent = footnote;
-  return new Promise(resolve => { pendingConsent = resolve; $('consent-dialog').showModal(); });
+  if (!$('consent-dialog').open) $('consent-dialog').showModal();
+}
+// A second request while one is open waits its turn. Answering "no" on the user's behalf would
+// make the later action (for example starting location sharing) silently do nothing.
+function askConsent(title, text, footnote = '이 요청을 진행할 때만 연결해요. 이 앱은 GPS 이동 기록을 저장하지 않아요. 외부 서비스의 로그 정책은 별도로 적용돼요.') {
+  return new Promise(resolve => {
+    consentQueue.push({title,text,footnote,resolve});
+    if (consentQueue.length === 1) showConsent();
+  });
 }
 function finishConsent(allowed) {
-  const resolve = pendingConsent; pendingConsent = null;
-  if ($('consent-dialog').open) $('consent-dialog').close();
-  resolve?.(allowed);
+  const current = consentQueue.shift();
+  if (!current) return;
+  if (consentQueue.length) showConsent();
+  else if ($('consent-dialog').open) $('consent-dialog').close();
+  current.resolve(allowed);
 }
 $('consent-allow').addEventListener('click', () => finishConsent(true));
 $('consent-cancel').addEventListener('click', () => finishConsent(false));

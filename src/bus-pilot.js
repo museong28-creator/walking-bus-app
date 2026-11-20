@@ -1,5 +1,5 @@
-import {arrivalIsFresh, createAuthenticatedNavigationClient} from './navigation-client.js?v=pace-22';
-import {distance} from './core.js?v=pace-20';
+import {arrivalIsFresh, createAuthenticatedNavigationClient} from './navigation-client.js';
+import {distance} from './core.js';
 
 // Verified against TAGO getSttnNoList / getSttnThrghRouteList on 2026-11-20.
 // Both directions of 894 visit this stop. TAGO arrival rows have no direction.

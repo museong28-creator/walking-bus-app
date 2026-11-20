@@ -334,3 +334,24 @@ test('manual bus time uses the exact absolute arrival timestamp and a one-minute
   assert.ok(h.$('deadline-detail').textContent.includes(new Date(arrival).toISOString()));
   assert.equal(h.calls.length,0,'using a manual bus time does not request live transit data');
 });
+
+test('sharing asks its own consent before re-selecting the meeting destination', async () => {
+  // Selecting a destination opens the app's routing consent. It must come after, never before or
+  // instead of, the sharing question, or pressing the share button appears to do nothing.
+  const order=[];
+  const h=await joined({consent:title=>{order.push(`consent:${title}`);return true;}});
+  h.context.destination={point:[38,128],name:'Somewhere else'};h.selected.length=0;order.length=0;
+  const original=h.selected.push.bind(h.selected);h.selected.push=item=>{order.push('select');return original(item);};
+  await h.click('share-location');
+  assert.equal(order.length,2);assert.match(order[0],/^consent:내 위치/);assert.equal(order[1],'select');
+  assert.deepEqual(h.selected[0].point,[37.5,127]);
+  assert.equal(h.calls.some(call=>call.path==='sharing/start'),true);
+});
+
+test('declining sharing consent does not change the selected destination', async () => {
+  const h=await joined({consent:title=>!title.includes('내 위치')});
+  h.context.destination={point:[38,128],name:'Somewhere else'};h.selected.length=0;
+  await h.click('share-location');
+  assert.equal(h.selected.length,0);assert.deepEqual(h.context.destination.point,[38,128]);
+  assert.equal(h.calls.some(call=>call.path==='sharing/start'),false);assert.equal(h.gpsRequests,0);
+});

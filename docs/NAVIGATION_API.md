@@ -24,6 +24,7 @@
 | `TAGO_SERVICE_KEY` | TAGO **Decoding** 인증키. URL 인코딩은 코드가 한 번 수행 |
 | `NAV_ALLOWED_ORIGINS` | `https://museong28-creator.github.io` (쉼표로 복수 origin 가능, 경로 없이) |
 | `NAV_HOST` | 로컬 검증 기본값 `127.0.0.1`. 호스팅 연결은 해당 플랫폼 지침에 맞춤 |
+| `NAV_TRUSTED_PROXY_HOPS` | 기본 `0`(0~5). 서버 앞 신뢰 프록시 개수. 설정하면 `X-Forwarded-For`의 오른쪽에서 이 개수만큼 떨어진 주소를 방문자 IP로 보고 방문자별로 분당 요청 제한을 적용. 0이면 모든 프록시 경유 요청이 하나의 제한을 공유. 값이 실제 프록시 수보다 크면 방문자가 주소를 위조할 수 있으므로 호스팅의 실제 헤더를 확인한 뒤 설정 |
 | `PORT` | 기본 8788 |
 | `NAV_MAX_DAILY_CALLS` | 기본 100, 1~1000; 프로세스 단위 보조 제한 |
 
