@@ -57,7 +57,18 @@ export function createMapAPI({key = '', leaflet, document = globalThis.document,
   const level = zoom => Math.max(1,Math.min(14,19-zoom));
   const latLng = (k,p) => new k.LatLng(p[0],p[1]);
   class MapView {
-    constructor(id) { this.element=document.getElementById(id); this.point=[37.5665,126.978];this.zoom=15;this.groups=new Set();this.events=new Map();this.enabled=false;this.instance=null;this.generation=0; }
+    constructor(id) {
+      this.element=document.getElementById(id); this.point=[37.5665,126.978];this.zoom=15;this.groups=new Set();this.events=new Map();this.enabled=false;this.instance=null;this.generation=0;
+      if (window.ResizeObserver) {
+        this.resizeObserver = new window.ResizeObserver(entries => {
+          if (entries.some(entry => entry.contentRect.width > 0 && entry.contentRect.height > 0)) {
+            this.invalidateSize();
+            if (this.bounds) this.fitBounds(this.bounds.points,this.bounds.options);
+          }
+        });
+        this.resizeObserver.observe(this.element);
+      }
+    }
     setView(point,zoom) {this.point=point;this.zoom=zoom;this.bounds=null;if(this.instance){this.instance.setLevel(level(zoom));this.instance.setCenter(latLng(this.k,point));}return this;}
     invalidateSize() { if(this.instance){this.instance.relayout();this.instance.setCenter(latLng(this.k,this.point));}return this; }
     on(type,callback) {this.events.set(type,callback);return this;}

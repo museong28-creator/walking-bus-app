@@ -109,7 +109,11 @@ export class SpeedTracker {
       this.current = stopped ? 0 : this.samples.reduce((sum, sample, index) => sum + sample.value * weights[index], 0) / weights.reduce((a, b) => a + b, 0);
       if (this.current >= 0.4) this.learned = this.current;
       this.status = stopped || this.current < 0.25 ? 'stopped' : 'measured';
-    } else this.status = this.current === null ? 'measuring' : this.status;
+    } else {
+      // A fresh coordinate does not make an old speed observation fresh.
+      if (!this.samples.length || timestamp - this.samples.at(-1).timestamp > 15000) this.current = null;
+      this.status = this.current === null ? 'measuring' : this.status;
+    }
     return true;
   }
 }
