@@ -26,7 +26,7 @@ export function initBusPilot({document:doc=document,window:win=window,session,ge
     $('pilot-arrival').textContent=view.fresh?(view.arrivals[0]?minutes(view.arrivals[0].seconds):'도착정보 없음'):'—';
     $('pilot-arrival-detail').textContent=view.fresh?(view.arrivals[0]?`${view.arrivals[0].remainingStops??'?'}개 정류장 전${view.arrivals[1]?` / 다음 버스 ${minutes(view.arrivals[1].seconds)}`:''}`:'현재 894번 도착정보가 없어요. 운행 종료를 뜻하지는 않아요.'):data?'30초가 지나 숨겼어요. 다시 조회해 주세요.':'894번 / 방면 구분 없음';
     $('pilot-walk-time').textContent=view.walkSeconds===null?'—':minutes(view.walkSeconds);
-    $('pilot-walk-detail').textContent=view.walkSeconds===null?'정류장을 목적지로 정하고 실제 도보 경로를 찾아 주세요.':`${Math.round(view.remaining)}m 남음 / ${(context.estimate.speed*3.6).toFixed(1)}km/h ${context.tracking?'최근 보행 속도':context.speedOrigin==='default'?'기본 속도':'저장 속도'}`;
+    $('pilot-walk-detail').textContent=view.walkSeconds===null?(context.route&&context.estimate?.endpointUncertain?'보행로 끝점과 선택 위치가 20m 넘게 떨어져 있어 시간을 보류해요.':context.route&&(context.estimate?.stale||context.estimate?.unreliable||context.estimate?.offRoute)?'현재 위치를 다시 확인하거나 도보 경로를 다시 찾아 주세요.':'정류장을 목적지로 정하고 실제 도보 경로를 찾아 주세요.'):`${Math.round(view.remaining)}m 남음 / ${(context.estimate.speed*3.6).toFixed(1)}km/h ${context.tracking?'최근 보행 속도':context.speedOrigin==='default'?'기본 속도':'저장 속도'}`;
     $('pilot-status').textContent=context.demo?'체험에서는 실제 버스 조회와 비교를 하지 않아요.':message;
     $('pilot-updated').textContent=view.fresh?`조회 시각 ${new Date(data.fetchedAt).toLocaleTimeString('ko-KR')} / 30초 뒤 숨김`:'자동 조회 없음 / 버튼을 누를 때만 조회';
   }
