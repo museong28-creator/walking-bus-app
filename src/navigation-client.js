@@ -1,4 +1,4 @@
-// Inactive until a verified, authenticated navigation backend is configured.
+// Server credentials stay on the authenticated backend.
 // No provider keys belong in this browser module.
 import {isCoordinate} from './core.js';
 import {NAVIGATION_API_ORIGIN} from './firebase-config.js';
@@ -80,5 +80,5 @@ export function createNavigationClient({origin, fetchImpl = fetch, now = Date.no
 }
 
 export function createAuthenticatedNavigationClient(session){
-  return createNavigationClient({origin:NAVIGATION_API_ORIGIN,getIdToken:()=>session.getIdToken()});
+  return createNavigationClient({origin:NAVIGATION_API_ORIGIN,timeoutMs:65000,getIdToken:()=>session.getIdToken()});
 }

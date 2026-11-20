@@ -128,3 +128,11 @@
 .pace-app .map-section:has(.map-gate:not(.hidden)) .locate-control{display:none}
 .pace-app .map-location-status{position:absolute;left:15px;right:15px;bottom:154px;z-index:1100;margin:0;padding:12px;background:var(--ob-card);color:var(--ob-text);border:1px solid #86948a55;border-radius:12px;font-size:14px;line-height:1.5;pointer-events:none}
 @media(max-width:760px){.onboarding .ob-mini-map{height:clamp(280px,42svh,400px)}.onboarding .ob-feedback,.onboarding .ob-copy,.onboarding .ob-help{font-size:14px}.onboarding .ob-text{font-size:14px;min-height:44px}.pace-app .gps-recovery{font-size:14px}}
+.pilot-card {border-bottom:1px solid var(--line,#334155);padding-bottom:22px;margin-bottom:20px}
+.pilot-card h3 {margin:14px 0 4px;font-size:20px}.pilot-card h3 span {white-space:nowrap}
+.pilot-direction {font-weight:700;color:var(--accent,#7bdca3)}
+.pilot-comparison {display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0}
+.pilot-comparison>div {min-width:0;border:1px solid var(--line,#334155);border-radius:16px;padding:14px 10px}
+.pilot-comparison span,.pilot-comparison strong,.pilot-comparison small {display:block}
+.pilot-comparison strong {font-size:27px;margin:8px 0;line-height:1.2}.pilot-comparison small {line-height:1.5;overflow-wrap:anywhere}
+.pilot-card button+button {margin-top:10px}.pilot-card a {font-size:13px}
