@@ -9,3 +9,6 @@ export const FIREBASE_CONFIG = Object.freeze({
   appId:'1:488598307207:web:80e018002f65d0f6d21322'
 });
 export const NAVIGATION_API_ORIGIN='https://myeotbun-georeum-navigation.onrender.com';
+// Origin of the deployed friend-sharing server (server/meeting-server.mjs), e.g. 'https://example.onrender.com'.
+// While empty, the meeting screen asks for a server address because no shared server exists yet.
+export const SHARING_SERVER_ORIGIN='';
