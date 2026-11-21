@@ -1,5 +1,6 @@
 import {nextManeuver} from './navigation.js';
 import {initAccountUI} from './account-ui.js';
+import {initLoginGate} from './login-gate.js';
 import {initBusPilot, PILOT_STOP} from './bus-pilot.js';
 import {DEFAULT_SPEED, SpeedTracker, distance, pathDistance, projectOnRoute, etaSeconds, catchStatus, parseCoordinates} from './core.js';
 import {SERVICES, getWalkingRoute, getWalkingRoutes, getRouteLamps, searchPlaces, getNearbyStops} from './services.js';
@@ -13,8 +14,8 @@ const mapProvider = KAKAO_JAVASCRIPT_KEY.trim() ? 'Kakao' : 'OpenStreetMap';
 const $ = id => document.getElementById(id);
 const accountSession=initAccountUI();
 $('map-provider-consent').textContent = `지도를 켜면 화면에 보이는 지역과 IP가 ${mapProvider} 지도 서버에 전달돼요.`;
-$('onboarding-map').textContent = `시작하기 · ${mapProvider} 지도 연결 동의`;
-$('onboarding-map-status').textContent = `시작하면 화면에 보이는 지역과 IP가 ${mapProvider} 지도 서버에 전달되고, 위치 권한을 요청해요.`;
+$('onboarding-map').textContent = `${mapProvider} 지도 다시 켜기`;
+$('login-status').textContent = `로그인하면 Google에 이름/이메일이 제공되고, 화면에 보이는 지역과 IP가 ${mapProvider} 지도 서버에 전달돼요.`;
 const tracker = new SpeedTracker();
 const calibration = {active:false, done:false, started:0, first:0, values:[], accuracy:null, message:'', lastSample:0};
 // Store only the chosen pace, never coordinates or the recorded GPS samples.
@@ -751,8 +752,6 @@ setInterval(() => {
   render();
 },1000);
 const savedPace = readPace();
-// First visit: the map connection must be agreed to before anything else is offered.
-if (!savedPace) document.body?.classList.add('first-visit');
 if (savedPace) {
   state.baseSpeed = savedPace.speed; state.speedOrigin = savedPace.origin === 'manual' ? 'manual' : 'calibrated';
   $('base-speed').value = (state.baseSpeed * 3.6).toFixed(1);
@@ -767,6 +766,13 @@ meetingUI = initMeetupUI({map,L:mapAPI,askConsent,notice,formatTime,
   requestGps:startTracking,
   showSharedMap:() => { $('map-gate').classList.add('hidden'); if (!state.mapEnabled) $('map-caption').textContent = '온라인 지도 꺼짐 / 동의한 친구의 좌표만 표시해요'; },
   selectDestination:(point,name) => { if (state.demo) exitDemo(); setDestination(point,name,'친구와의 약속 장소'); fitMap(); }
+});
+
+// Signing in is also the agreement to connect the map: the button says so. First-time users
+// continue to the pace measurement with their location shown, returning users to the map.
+initLoginGate({session:accountSession,
+  onSignedIn:() => { enableMap(); if (document.body?.classList.contains('onboarding') && !state.tracking) startTracking(); render(); },
+  onSignedOut:() => { if (state.tracking) stopTracking(); meetingUI?.pauseSharing('로그아웃해서 위치 공유를 중지했어요.'); setMore(false); render(); }
 });
 
 // An opened invitation belongs to the meeting view.

@@ -66,14 +66,22 @@ body:not(.onboarding)[data-view="meet"] .hero-meet { display: flex; align-items:
 .hero h1 { font-size: 40px; font-weight: 900; line-height: 1.1; letter-spacing: -1.5px; padding: 6px 0 4px; }
 .hero h2 { flex: none; font-size: 28px; font-weight: 900; line-height: 1.1; }
 .ob-readout { display: none; flex-direction: column; gap: 2px; }
-.map-agreed .ob-readout { display: flex; }
-.map-agreed #onboarding-title { display: none; }
+.onboarding .ob-readout { display: flex; }
+.onboarding #onboarding-title { display: none; }
+/* Signed out: only the title, the three steps and the login button exist. */
+.locked .hero, .locked .onboarding-card, .locked .workspace, .locked .tabbar, .locked .board-actions { display: none !important; }
+.locked .hero-ob { display: flex !important; }
+.locked #onboarding-title { display: block; }
+.locked .ob-readout { display: none; }
+.login-gate { display: none; }
+.locked .login-gate { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 0 var(--pad) 12px; }
+.locked .hero h1 { font-size: 56px; padding: 22px 0 18px; }
+.locked .ob-steps li { min-height: 68px; }
 .hero-ob .hero-number { font-size: 96px; }
 .hero-ob .hero-number .unit { font-size: 30px; }
 .board-actions { display: flex; gap: 6px; }
 #onboarding-skip, .onboarding #account-button { display: none; }
 .onboarding #onboarding-skip { display: block; }
-.onboarding.first-visit:not(.map-agreed) #onboarding-skip { display: none; }
 strong.empty { font-weight: 400 !important; color: var(--sub); }
 #onboarding-pace { font-size: 14px; font-weight: 700; }
 .live-tag { display: inline-block; padding: 1px 7px; border-radius: 4px; background: var(--ink); color: var(--yellow); font-size: 12px; font-weight: 700; }
@@ -137,13 +145,9 @@ details p { font-size: 14px; color: var(--sub); }
 .ob-steps div { display: flex; flex-direction: column; }
 .ob-steps strong { font-size: 16px; font-weight: 900; }
 .ob-steps span { font-size: 12px; color: var(--sub); }
-/* Step 1 is only the agreement. Everything about measuring appears after it. */
-.ob-meter, .ob-keep-on, body:not(.map-agreed) #onboarding-start, body:not(.map-agreed) #more-ob, body:not(.map-agreed) .ob-mini-map { display: none; }
-.map-agreed .ob-meter { display: flex; }
-.map-agreed .ob-keep-on { display: block; }
-.map-agreed .ob-steps { display: none; }
+.ob-meter { display: flex; }
 #onboarding-map.hidden + #onboarding-map-status { display: none; }
-#onboarding-map-status { text-align: center; }
+#onboarding-map-status, #login-status { text-align: center; }
 .ob-meter .row { min-height: 42px; padding: 4px 0; }
 .ob-meter .row strong { font-size: 17px; }
 .ob-meter .row-progress { padding: 8px 0; gap: 6px; }

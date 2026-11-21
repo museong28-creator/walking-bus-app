@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="styles.css">
   <title>몇분 걸음 / 나의 속도로 도착하기</title>
 </head>
-<body class="pace-app onboarding" data-view="main">
+<body class="pace-app onboarding locked" data-view="main">
 <div class="app">
   <header class="board">
     <div class="board-top">
@@ -53,12 +53,19 @@
     <div class="hero hero-meet"><h2>약속</h2></div>
   </header>
 
-  <section id="onboarding-card" class="onboarding-card" aria-labelledby="onboarding-title">
+  <section class="login-gate" aria-labelledby="onboarding-title">
     <ol class="ob-steps" aria-label="시작 순서">
-      <li><b>1</b><div><strong>내 위치 확인</strong><span>버튼을 누른 뒤에만 위치 권한을 요청해요</span></div></li>
+      <li><b>1</b><div><strong>Google로 로그인</strong><span>친구들과 함께 쓰는 서비스라 로그인이 필요해요</span></div></li>
       <li><b>2</b><div><strong>30초 걸어서 속도 측정</strong><span>평소처럼 걸으면 돼요</span></div></li>
       <li><b>3</b><div><strong>목적지 고르기</strong><span>도착 시간과 버스 시간을 함께 봐요</span></div></li>
     </ol>
+    <div class="ob-actions">
+      <button id="login-start" class="primary wide">Google로 시작하기</button>
+      <p id="login-status" class="microcopy" role="status">로그인하면 Google에 이름/이메일이 제공되고, 화면에 보이는 지역과 IP가 지도 서버에 전달돼요.</p>
+    </div>
+  </section>
+
+  <section id="onboarding-card" class="onboarding-card" aria-labelledby="onboarding-title">
     <div class="rows ob-meter">
       <div class="row"><span>상태</span><strong id="onboarding-status" role="status">측정 준비</strong></div>
       <div class="row"><span>측정 시간</span><strong id="onboarding-time">00:00</strong></div>
@@ -69,8 +76,8 @@
     <div id="onboarding-map-view" class="ob-mini-map hidden" aria-label="측정한 내 위치 지도"></div>
     <div id="onboarding-recovery" class="gps-recovery hidden" role="status"><p id="onboarding-problem"></p><button id="onboarding-retry" class="secondary">위치와 속도 다시 측정</button><button id="onboarding-manual" class="link-button">속도 직접 입력</button></div>
     <div class="ob-actions">
-      <button id="onboarding-map" class="primary wide">시작하기 · 지도 연결 동의</button>
-      <p id="onboarding-map-status" class="microcopy" role="status">시작하면 화면에 보이는 지역과 IP가 지도 서버에 전달되고, 위치 권한을 요청해요.</p>
+      <button id="onboarding-map" class="secondary wide">지도 다시 켜기</button>
+      <p id="onboarding-map-status" class="microcopy" role="status"></p>
       <button id="onboarding-start" class="primary wide">걷는 속도 측정 시작</button>
       <button id="onboarding-finish" class="primary wide hidden" disabled>이 속도 사용하기</button>
       <button id="onboarding-stop" class="link-button hidden">측정 중지</button>

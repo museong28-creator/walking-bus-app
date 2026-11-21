@@ -93,7 +93,7 @@ function harness(options = {}) {
     getRouteLamps: options.getRouteLamps || (async () => {throw new Error('Unexpected network request');}),
     searchPlaces: async () => {throw new Error('Unexpected network request');},
     getNearbyStops: options.getNearbyStops || (async () => {throw new Error('Unexpected network request');}),
-    initAccountUI: () => ({}), initBusPilot: () => ({render(){}}),
+    initAccountUI: () => ({}), initLoginGate: () => {}, initBusPilot: () => ({render(){}}),
     initMeetupUI: () => ({refresh() {},pauseSharing() {},destinationChanged() {},useBusTime(timestamp) {busTargets.push(timestamp);}}),
   });
   vm.runInContext(appSource, context, {filename: 'src/app.js'});
