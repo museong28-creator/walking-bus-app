@@ -175,7 +175,7 @@ body:not(.measuring) .ob-mini-map { display: none; }
 .search-bar input { flex: 1; min-width: 0; min-height: 44px; border: 0; border-radius: 0; }
 .search-bar input:focus-visible { outline-offset: -3px; }
 .search-bar button { min-width: 60px; border: 0; border-left: var(--rule); background: var(--ink); color: var(--paper); font-size: 15px; font-weight: 700; }
-.search-results { position: absolute; z-index: 600; top: 58px; left: 10px; right: 10px; max-height: calc(100% - 66px); overflow: auto; border: var(--rule); border-radius: 10px; background: var(--paper); }
+.search-results { position: absolute; z-index: 850; top: 58px; left: 10px; right: 10px; max-height: calc(100% - 66px); overflow: auto; border: var(--rule); border-radius: 10px; background: var(--paper); }
 .search-results li + li { border-top: 1px solid var(--ink); }
 .search-results button { display: flex; flex-direction: column; width: 100%; min-height: 48px; padding: 6px 14px; border: 0; background: none; text-align: left; font-size: 15px; font-weight: 700; }
 .search-results button small, .search-results button span { font-size: 13px; font-weight: 500; color: var(--sub); }
@@ -184,8 +184,12 @@ body:not(.measuring) .ob-mini-map { display: none; }
 .map-gate .primary { min-height: 46px; }
 .map-gate small { font-size: 11px; color: var(--sub); }
 .map-gate:not(.hidden) ~ .locate-control { display: none; }
-.locate-control { position: absolute; z-index: 450; right: 10px; top: calc(66px + env(safe-area-inset-top)); min-height: 44px; padding: 0 12px; border: var(--rule); border-radius: 8px; background: var(--paper); font-size: 14px; font-weight: 700; }
-.map-location-status { position: absolute; z-index: 450; right: 10px; top: calc(118px + env(safe-area-inset-top)); max-width: 70%; padding: 5px 9px; border-radius: 6px; background: var(--ink); color: var(--paper); font-size: 12px; }
+/* Round "back to my position" button at the bottom right of the map, above the tab bar. */
+.locate-control { position: absolute; z-index: 450; right: 12px; bottom: calc(var(--tabbar) + 32px + env(safe-area-inset-bottom)); width: 52px; height: 52px; padding: 0; border: var(--rule); border-radius: 50%; background: var(--paper) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='6'/%3E%3Ccircle cx='12' cy='12' r='1.6' fill='%23111'/%3E%3Cpath d='M12 2v4M12 18v4M2 12h4M18 12h4'/%3E%3C/svg%3E") center / 28px no-repeat; box-shadow: 0 4px 12px rgba(17,17,17,.22); font-size: 0; color: transparent; }
+.locate-control:disabled { opacity: .6; }
+/* The walking-time strip sits where the button would be: lift the button above it. */
+.has-destination .locate-control { bottom: calc(var(--tabbar) + 150px + env(safe-area-inset-bottom)); }
+.map-location-status { position: absolute; z-index: 450; right: 12px; top: calc(66px + env(safe-area-inset-top)); max-width: 70%; padding: 5px 9px; border-radius: 6px; background: var(--ink); color: var(--paper); font-size: 12px; }
 .map-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: var(--rule); border-radius: 10px; overflow: hidden; }
 .map-tools button { min-height: 48px; padding: 0 4px; border: 0; background: var(--paper); font-size: 13px; font-weight: 700; }
 .map-tools button { border: 1px solid var(--ink); }
@@ -200,7 +204,8 @@ body:not(.measuring) .ob-mini-map { display: none; }
 
 /* ---------- Bottom sheet over the map ---------- */
 .scrim { display: none; }
-.sheet-open .scrim { display: block; position: absolute; inset: 0; z-index: 700; border: 0; background: rgba(17,17,17,.12); }
+/* Above the map and its buttons, below the search bar: typing a destination keeps the sheet open. */
+.sheet-open .scrim { display: block; position: absolute; inset: 0; z-index: 470; border: 0; background: rgba(17,17,17,.12); }
 .sheet { position: absolute; z-index: 800; left: 8px; right: 8px; bottom: calc(var(--tabbar) + 22px); max-height: 66%; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
 .sheet > * { pointer-events: auto; flex: none; }
 .sheet-board { display: none; padding: 10px 14px; border: var(--rule); border-radius: 14px; background: var(--yellow); cursor: pointer; }

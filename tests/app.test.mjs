@@ -736,9 +736,12 @@ test('a tab opens its sheet and tapping it again or the map closes it',async()=>
   await h.element('view-bus').emit('click');assert.equal(body.classList.contains('sheet-open'),false);
   await h.element('view-meet').emit('click');assert.equal(body.classList.contains('sheet-open'),true);
   await h.element('sheet-scrim').emit('click');assert.equal(body.classList.contains('sheet-open'),false);
-  // Choosing a destination puts the map back in view.
+  // Choosing a destination (for example from the search box) does not close an open sheet.
   await h.element('view-main').emit('click');h.app.state.position=[37.56,126.97];h.app.setDestination([37.57,126.98],'Destination');
-  assert.equal(body.classList.contains('sheet-open'),false);assert.equal(body.classList.contains('has-destination'),true);
+  assert.equal(body.classList.contains('sheet-open'),true);assert.equal(body.classList.contains('has-destination'),true);
+  // The collapsed walking-time strip reopens the route view.
+  await h.element('sheet-scrim').emit('click');await h.element('view-bus').emit('click');await h.element('view-bus').emit('click');
+  await h.element('sheet-board').emit('click');assert.equal(body.classList.contains('sheet-open'),true);
 });
 test('a configured sharing server is filled in and its address field is hidden from friends',async()=>{
   const configured=harness({sharingServer:'https://share.example.test'});
