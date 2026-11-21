@@ -1,0 +1,12 @@
+{
+  "name": "몇분 걸음",
+  "short_name": "몇분 걸음",
+  "description": "내 걸음 속도로 계산하는 도보 도착 시간",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFD400",
+  "icons": [{"src":"assets/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]
+}
