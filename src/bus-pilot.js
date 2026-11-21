@@ -24,6 +24,7 @@ export function initBusPilot({document:doc=document,window:win=window,session,ge
     $('pilot-refresh').textContent=busy?'무료 서버 연결 중…':'도착정보 새로고침';
     $('pilot-walk').disabled=context.demo;
     $('pilot-arrival').textContent=view.fresh?(view.arrivals[0]?minutes(view.arrivals[0].seconds):'도착정보 없음'):'—';
+    $('pilot-arrival').classList?.toggle('empty',$('pilot-arrival').textContent==='—');
     $('pilot-arrival-detail').textContent=view.fresh?(view.arrivals[0]?`${view.arrivals[0].remainingStops??'?'}개 정류장 전${view.arrivals[1]?` / 다음 버스 ${minutes(view.arrivals[1].seconds)}`:''}`:'현재 894번 도착정보가 없어요. 운행 종료를 뜻하지는 않아요.'):data?'30초가 지나 숨겼어요. 다시 조회해 주세요.':'894번 / 방면 구분 없음';
     $('pilot-walk-time').textContent=view.walkSeconds===null?'—':minutes(view.walkSeconds);
     $('pilot-walk-time').classList?.toggle('empty',view.walkSeconds===null);

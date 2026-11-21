@@ -43,6 +43,7 @@ function renderCalibration() {
   // The yellow header swaps its headline for the live speed readout while measuring.
   document.body?.classList.toggle('measuring', active || stoppedReady);
   $('onboarding-speed').textContent = calibration.done ? (state.baseSpeed * 3.6).toFixed(1) : stoppedReady ? (calibration.values.reduce((a,b)=>a+b,0) / calibration.values.length * 3.6).toFixed(1) : usable && active ? (tracker.current * 3.6).toFixed(1) : '—';
+  $('onboarding-speed').classList.toggle('empty', $('onboarding-speed').textContent === '—');
   $('onboarding-speed-label').textContent = calibration.done || stoppedReady ? '이번 측정 평균 속도' : '현재 보행 속도';
   $('onboarding-status').textContent = calibration.done ? '측정 완료' : state.gpsIssue ? '위치 확인 필요' : !active ? fresh ? '위치 확인 완료' : state.tracking ? '위치 확인 중' : '측정 준비' : !state.tracking ? '측정 중지' : !fresh ? '위치 신호 기다리는 중' : ready ? '이 속도를 사용할 수 있어요' : '내 걸음 측정 중';
   $('onboarding-pace').textContent = calibration.done ? '목적지를 정해볼까요?' : stoppedReady ? '측정한 평균 속도를 사용할 수 있어요' : usable && active ? 'GPS 기반 추정 속도' : '보행 표본을 기다려요';
@@ -63,6 +64,7 @@ function renderCalibration() {
   if (calibration.message) $('onboarding-feedback').textContent = calibration.message;
 }
 function leaveOnboarding() {
+  setMore(false);
   setPickingStart(false);
   calibration.active = false;
   if (!state.mapEnabled && !state.demo) $('map-gate').classList.remove('hidden');
@@ -97,7 +99,7 @@ $('onboarding-finish').addEventListener('click', () => {
 $('onboarding-skip').addEventListener('click', () => {if (state.tracking) stopTracking();leaveOnboarding();render();});
 $('recalibrate-button').addEventListener('click', () => {
   if (state.tracking) stopTracking();
-  $('onboarding-skip').classList.remove('ob-primary'); $('onboarding-skip').textContent = '나중에 측정하고 지도 보기 →';
+  $('onboarding-skip').classList.remove('ob-primary'); $('onboarding-skip').textContent = '나중에 측정하고 지도 보기';
   $('onboarding-map-view').classList.toggle('hidden', !state.mapEnabled); calibration.accuracy = null;
   document.body?.classList.add('onboarding');$('onboarding-card').classList.remove('hidden');
   Object.assign(calibration,{done:false,active:false,readyAtStop:false,started:0,stopped:0,first:0,values:[],lastSample:0,accuracy:null,message:'측정하기를 누르면 새로운 표본으로 시작해요. 기존 속도는 새 측정을 완료할 때까지 유지돼요.'});
@@ -107,7 +109,15 @@ $('recalibrate-button').addEventListener('click', () => {
   state.gpsIssue = ''; renderCalibration();refreshMaps();window.scrollTo?.({top:0,behavior:'smooth'});
 });
 // One page, three views that share the same map. The view only decides which header and panel show.
+// Each screen fits the viewport. Explanations and rarely used settings live in a sheet
+// that is opened on demand and closed whenever the map becomes the thing to look at.
+function setMore(open) { document.body?.classList.toggle('more-open', open); }
+for (const name of ['main','bus','meet','ob']) {
+  $(`more-${name}`).addEventListener('click', () => setMore(true));
+  $(`more-close-${name}`).addEventListener('click', () => setMore(false));
+}
 function showView(view) {
+  setMore(false);
   document.body?.setAttribute?.('data-view', view);
   for (const name of ['main','bus','meet']) {
     if (name === view) $(`view-${name}`).setAttribute?.('aria-current','page');
@@ -245,6 +255,7 @@ function setPickingStart(picking) {
 }
 function setDestination(point, name, source = '지도에서 선택한 지점') {
   // Search, stops and shared destinations must also leave start-picking mode.
+  setMore(false);
   setPickingStart(false);
   meetingUI?.destinationChanged(point);
   clearRequests(); state.destination = {point,name,source}; state.route = null; state.busArrival = null;
@@ -542,7 +553,7 @@ async function findStops() {
   finally { if (controller === stopController) { state.stopBusy = false; render(); } }
 }
 $('stops-button').addEventListener('click', findStops);
-$('map-stops').addEventListener('click', () => { showView('bus'); return findStops(); });
+$('map-stops').addEventListener('click', () => { showView('bus'); setMore(true); return findStops(); });
 
 $('bus-form').addEventListener('submit', event => {
   event.preventDefault();
@@ -565,8 +576,8 @@ function setManualPace(kmh) {
   return true;
 }
 $('base-speed').addEventListener('input', () => setManualPace(Number($('base-speed').value)));
-$('edit-pace').addEventListener('click', () => { $('speed-settings').open = true; $('speed-settings').scrollIntoView?.({behavior:'smooth',block:'start'}); });
-$('onboarding-manual').addEventListener('click', () => { $('manual-pace-details').open = true; $('manual-pace-details').scrollIntoView?.({behavior:'smooth',block:'center'}); });
+$('edit-pace').addEventListener('click', () => { setMore(true); $('speed-settings').open = true; $('speed-settings').scrollIntoView?.({behavior:'smooth',block:'start'}); });
+$('onboarding-manual').addEventListener('click', () => { setMore(true); $('manual-pace-details').open = true; $('manual-pace-details').scrollIntoView?.({behavior:'smooth',block:'center'}); });
 $('manual-pace-form').addEventListener('submit', event => {
   event.preventDefault();
   const kmh = Number($('manual-pace').value);
@@ -756,6 +767,7 @@ meetingUI = initMeetupUI({map,L:mapAPI,askConsent,notice,formatTime,
 // An opened invitation belongs to the meeting view.
 if (window.location?.hash?.includes('meeting=1')) showView('meet');
 
+$('fit-friends').addEventListener('click', () => setMore(false));
 busPilotUI = initBusPilot({session:accountSession,
   getContext:()=>({...state,estimate:estimate(Date.now())}),
   showStop:async stop=>{
@@ -764,6 +776,7 @@ busPilotUI = initBusPilot({session:accountSession,
       if(!(await askConsent('정류장 지도 보기', `${mapProvider} 지도 서버에 정류장이 있는 지역과 IP를 보내요. 현재 GPS 위치는 보내지 않아요.`)))return;
       enableMap();
     }
+    setMore(false);
     pilotLayer.clearLayers();
     marker(stop.point,'stop',`${stop.name} / 894번 실제 도착정보`).on('click',()=>{
       showView('bus');
