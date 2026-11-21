@@ -374,11 +374,13 @@ body:not(.has-destination) .hero-main .place-eta, body:not(.has-destination) .he
 #invite-controls { display: flex; flex-direction: column; gap: 8px; }
 
 /* ---------- Bottom menu ---------- */
-/* Docked under the map: icons use the button text as their accessible names. */
+/* Docked under the map: a line icon with its name under it. */
 .tabbar { flex: none; position: relative; z-index: 900; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 0 4px env(safe-area-inset-bottom); border-top: 1px solid var(--line); background: var(--paper); }
-.tabbar button { display: grid; place-items: center; min-width: 0; height: 56px; padding: 0; border: 0; background: none; font-size: 0; }
-.tabbar button::before { content: ""; width: 44px; height: 44px; border-radius: 50%; background: center / 24px no-repeat; opacity: .72; transition: background-color .15s; }
+.tabbar button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 0; height: 56px; padding: 0; border: 0; background: none; font-size: 11px; font-weight: 500; line-height: 1.3; letter-spacing: -.2px; color: var(--sub); white-space: nowrap; }
+.tabbar button::before { content: ""; width: 48px; height: 28px; border-radius: 14px; background: center / 22px no-repeat; opacity: .72; transition: background-color .15s; }
 .tabbar button:active::before { background-color: var(--wash); }
+/* The current view: ink and bold, with a yellow pill behind the icon. */
+.tabbar button[aria-current="page"] { font-weight: 800; color: var(--ink); }
 .tabbar button[aria-current="page"]::before { background-color: var(--yellow); opacity: 1; }
 .tabbar button:focus-visible { outline-offset: -4px; border-radius: 12px; }
 #view-main::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12z'/%3E%3Ccircle cx='12' cy='10' r='2.5'/%3E%3C/svg%3E"); }
