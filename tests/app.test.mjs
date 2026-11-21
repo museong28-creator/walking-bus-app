@@ -85,7 +85,7 @@ function harness(options = {}) {
     polyline: layer, marker: layer, divIcon: value => value, latLngBounds: value => value};
   class ClockDate extends Date { static now() { return now; } }
   const context = vm.createContext({
-    ...core, nextManeuver, SERVICES, createMapAPI, KAKAO_JAVASCRIPT_KEY:'', document, window, navigator, L, Date: ClockDate, Intl, AbortController, console,
+    ...core, nextManeuver, SERVICES, createMapAPI, KAKAO_JAVASCRIPT_KEY:'', SHARING_SERVER_ORIGIN: options.sharingServer || '', document, window, navigator, L, Date: ClockDate, Intl, AbortController, console,
     setInterval: callback => { intervals.push(callback); return intervals.length; },
     setTimeout: callback => { const id=Symbol();timers.set(id,callback);return id; }, clearTimeout:id=>timers.delete(id),
     getWalkingRoute: async () => {throw new Error('Unexpected network request');},
@@ -690,4 +690,60 @@ test('changing the destination refuses every waiting consent and leaves only the
   assert.equal(h.element('consent-dialog').open,true);assert.match(h.element('consent-title').textContent,/도보 경로/);
   await h.element('consent-cancel').emit('click');await flushAsync();
   assert.equal(h.element('consent-dialog').open,false);
+});
+
+test('routing consent is asked once per visit, then a new destination gets its walking time immediately',async()=>{
+  let calls=0;const h=harness({getWalkingRoutes:async(start,end)=>{calls++;return [{points:[start,end],distance:300,snapDistance:0}];}});
+  await h.element('onboarding-skip').emit('click');
+  h.app.state.position=[37.56,126.97];h.app.setDestination([37.561,126.97],'First');
+  assert.equal(h.element('consent-dialog').open,true);assert.equal(calls,0);
+  await h.element('consent-allow').emit('click');await flushAsync();
+  assert.equal(calls,1);assert.notEqual(h.app.state.route,null);assert.notEqual(h.element('eta-minutes').textContent,'--');
+  h.app.setDestination([37.562,126.97],'Second');await flushAsync();
+  assert.equal(h.element('consent-dialog').open,false);assert.equal(calls,2);
+  assert.notEqual(h.app.state.route,null);assert.notEqual(h.element('eta-minutes').textContent,'--');
+});
+test('declining the routing consent does not count as agreement for the next destination',async()=>{
+  let calls=0;const h=harness({getWalkingRoutes:async(start,end)=>{calls++;return [{points:[start,end],distance:300,snapDistance:0}];}});
+  await h.element('onboarding-skip').emit('click');
+  h.app.state.position=[37.56,126.97];h.app.setDestination([37.561,126.97],'First');
+  await h.element('consent-cancel').emit('click');await flushAsync();
+  h.app.setDestination([37.562,126.97],'Second');await flushAsync();
+  assert.equal(h.element('consent-dialog').open,true);assert.equal(calls,0);
+});
+test('a destination chosen before the location is known starts GPS and routes once on the first accurate fix',async()=>{
+  let calls=0;const h=harness({getWalkingRoutes:async(start,end)=>{calls++;return [];}});
+  await h.element('onboarding-skip').emit('click');h.app.state.routeConsent=true;
+  h.app.setDestination([0.001,0],'Destination');
+  assert.equal(h.app.state.tracking,true);assert.equal(h.watches.length,1);assert.equal(calls,0);
+  h.position({latitude:0,longitude:0});await flushAsync();
+  assert.equal(calls,1);
+  // No route came back. Walking on must not send the position to the routing server again.
+  h.advance(2000);h.position({latitude:0.00002,longitude:0});await flushAsync();
+  h.advance(2000);h.position({latitude:0.00004,longitude:0});await flushAsync();
+  assert.equal(calls,1);
+});
+test('clearing the destination cancels the pending automatic route',async()=>{
+  let calls=0;const h=harness({getWalkingRoutes:async()=>{calls++;return [];}});
+  await h.element('onboarding-skip').emit('click');h.app.state.routeConsent=true;
+  h.app.setDestination([0.001,0],'Destination');await h.element('clear-destination').emit('click');
+  h.position({latitude:0,longitude:0});await flushAsync();
+  assert.equal(calls,0);
+});
+test('a tab opens its sheet and tapping it again or the map closes it',async()=>{
+  const h=harness();await h.element('onboarding-skip').emit('click');const body=h.document.body;
+  await h.element('view-bus').emit('click');assert.equal(body.classList.contains('sheet-open'),true);
+  await h.element('view-bus').emit('click');assert.equal(body.classList.contains('sheet-open'),false);
+  await h.element('view-meet').emit('click');assert.equal(body.classList.contains('sheet-open'),true);
+  await h.element('sheet-scrim').emit('click');assert.equal(body.classList.contains('sheet-open'),false);
+  // Choosing a destination puts the map back in view.
+  await h.element('view-main').emit('click');h.app.state.position=[37.56,126.97];h.app.setDestination([37.57,126.98],'Destination');
+  assert.equal(body.classList.contains('sheet-open'),false);assert.equal(body.classList.contains('has-destination'),true);
+});
+test('a configured sharing server is filled in and its address field is hidden from friends',async()=>{
+  const configured=harness({sharingServer:'https://share.example.test'});
+  assert.equal(configured.element('sharing-server').value,'https://share.example.test');
+  assert.equal(configured.element('sharing-server-settings').classList.contains('hidden'),true);
+  const empty=harness();
+  assert.equal(empty.element('sharing-server').value,'');assert.equal(empty.element('sharing-server-settings').classList.contains('hidden'),false);
 });

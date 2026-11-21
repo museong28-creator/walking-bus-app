@@ -7,6 +7,7 @@ import {SERVICES, getWalkingRoute, getWalkingRoutes, getRouteLamps, searchPlaces
 import {initMeetupUI} from './meetup-ui.js';
 import {createMapAPI} from './map-adapter.js';
 import {KAKAO_JAVASCRIPT_KEY} from './map-config.js';
+import {SHARING_SERVER_ORIGIN} from './firebase-config.js';
 
 const mapAPI = createMapAPI({key:KAKAO_JAVASCRIPT_KEY,leaflet:L});
 const mapProvider = KAKAO_JAVASCRIPT_KEY.trim() ? 'Kakao' : 'OpenStreetMap';
@@ -120,21 +121,34 @@ for (const name of ['main','bus','meet','ob']) {
   $(`more-${name}`).addEventListener('click', () => setMore(true));
   $(`more-close-${name}`).addEventListener('click', () => setMore(false));
 }
-function showView(view) {
-  setMore(false);
-  document.body?.setAttribute?.('data-view', view);
+// The map fills the screen. A view is a bottom sheet over it: opened from its tab, closed by
+// tapping the tab again or the map, so the map is never permanently covered.
+let currentView = 'main', sheetOpen = false;
+function setSheet(open) {
+  sheetOpen = open; document.body?.classList.toggle('sheet-open', open);
   for (const name of ['main','bus','meet']) {
-    if (name === view) $(`view-${name}`).setAttribute?.('aria-current','page');
+    if (open && name === currentView) $(`view-${name}`).setAttribute?.('aria-current','page');
     else $(`view-${name}`).removeAttribute?.('aria-current');
   }
-  refreshMaps();
+}
+function showView(view, open = true) {
+  setMore(false);
+  currentView = view; document.body?.setAttribute?.('data-view', view);
+  setSheet(open);
 }
 for (const name of ['main','bus','meet']) $(`view-${name}`).addEventListener('click', () => {
   // Leaving a pace measurement through the tabs keeps the previously saved pace.
   if (document.body?.classList.contains('onboarding')) { if (state.tracking) stopTracking(); leaveOnboarding(); render(); }
-  showView(name); window.scrollTo?.({top:0,behavior:'auto'});
+  showView(name, !(sheetOpen && currentView === name));
+});
+$('sheet-scrim').addEventListener('click', () => setSheet(false));
+// The collapsed strip always shows the walking ETA, so tapping it opens the route view.
+$('sheet-board').addEventListener('click', event => {
+  if (event?.target?.id === 'clear-destination') return;
+  if (sheetOpen) setSheet(false); else showView('main');
 });
 const state = {start:null, position:null, destination:null, route:null, routes:[], selectedRoute:0, lampResults:null, lampBusy:false, lampMessage:'등록 가로등 정보는 별도로 조회해요. 실제 밝기/점등 상태는 알 수 없어요.', tracking:false, watchId:null, watchEpoch:0,
+  routeConsent:false, autoRoute:false,
   speedOrigin:'default', baseSpeed:4.3 / 3.6, mapEnabled:false, pickingStart:false, demo:false, demoProgress:0, demoSpeed:DEFAULT_SPEED,
   busArrival:null, requestEpoch:0, routeBusy:false, stopBusy:false, lastGoodFix:0, trackingStarted:0, gpsIssue:'', wakeLock:null};
 let routeController, searchController, stopController, lampController;
@@ -261,7 +275,7 @@ function setPickingStart(picking) {
 }
 function setDestination(point, name, source = '지도에서 선택한 지점') {
   // Search, stops and shared destinations must also leave start-picking mode.
-  setMore(false);
+  setMore(false); setSheet(false);
   setPickingStart(false);
   meetingUI?.destinationChanged(point);
   clearRequests(); state.destination = {point,name,source}; state.route = null; state.busArrival = null;
@@ -272,12 +286,15 @@ function setDestination(point, name, source = '지도에서 선택한 지점') {
   $('map-tip').textContent = state.position ? '목적지를 정했어요. 도보 경로를 찾아보세요' : '출발지를 정하거나 내 위치로 걷기를 시작하세요';
   notice(); draw(); render();
   // Present consent immediately, but send no coordinates until the user agrees.
-  if (state.position && !state.demo && !document.body?.classList.contains('onboarding')) void findRoute();
+  if (state.demo || document.body?.classList.contains('onboarding')) return;
+  if (state.position) void findRoute();
+  // No start yet: locate the user and route as soon as the first accurate fix arrives.
+  else { state.autoRoute = true; if (!state.tracking) startTracking(); }
 }
 $('clear-destination').addEventListener('click', () => {
   meetingUI?.destinationChanged(null);
   if (state.demo) exitDemo();
-  clearRequests(); setPickingStart(false); state.destination = null; state.route = null; state.busArrival = null;
+  clearRequests(); setPickingStart(false); state.destination = null; state.route = null; state.busArrival = null; state.autoRoute = false;
   $('destination-name').textContent = '지도에서 목적지를 선택해 주세요';
   $('destination-detail').textContent = '장소 검색이나 좌표 입력도 가능해요';
   $('clear-destination').classList.add('hidden'); $('map-tip').textContent = '지도를 눌러 목적지를 정하세요';
@@ -391,6 +408,8 @@ function startTracking() {
         }
         notice(`GPS 정확도가 낮거나 위치가 튀었어요. 탁 트인 곳에서 잠시 기다려 주세요. (오차 약 ${Math.round(coords.accuracy)}m)`); render(); return; }
       state.position = [coords.latitude,coords.longitude]; state.lastGoodFix = position.timestamp; state.gpsIssue = '';
+      // One automatic request for a destination chosen before the location was known. Never repeated while walking.
+      if (state.autoRoute) { state.autoRoute = false; if (state.destination && !state.route) void findRoute(); }
       showCalibrationLocation(state.position,coords.accuracy);
       if (calibration.active && !calibration.done) {
         const sample = tracker.samples.at(-1);
@@ -498,7 +517,11 @@ window.addEventListener('pagehide', stopTracking);
 async function findRoute() {
   if (!state.position || !state.destination || state.routeBusy || state.demo) return;
   const epoch = state.requestEpoch, start = [...state.position], end = [...state.destination.point];
-  if (!(await askConsent('실제 도보 경로 찾기', '선택한 출발지와 목적지의 정확한 좌표를 FOSSGIS 도보 경로 서버 (routing.openstreetmap.de)에 보내요. 현재 위치를 출발지로 쓰면 현재 위치 좌표가 전송돼요. 이동 중에는 경로 서버로 자동 전송하지 않아요.'))) return;
+  // Asked once per visit. After that a new destination shows its walking time immediately.
+  if (!state.routeConsent) {
+    if (!(await askConsent('실제 도보 경로 찾기', '선택한 출발지와 목적지의 정확한 좌표를 FOSSGIS 도보 경로 서버 (routing.openstreetmap.de)에 보내요. 현재 위치를 출발지로 쓰면 현재 위치 좌표가 전송돼요. 이동 중에는 경로 서버로 자동 전송하지 않아요.'))) return;
+    state.routeConsent = true;
+  }
   if (epoch !== state.requestEpoch) return;
   lampController?.abort(); state.lampResults = null; state.lampBusy = false; state.lampMessage = '등록 가로등 정보는 별도로 조회해요. 실제 밝기/점등 상태는 알 수 없어요.';
   routeController?.abort(); routeController = new AbortController(); const controller = routeController;
@@ -661,6 +684,7 @@ function render() {
   $('eta-minutes').textContent = e.arrived ? '도착' : e.seconds !== null ? String(Math.max(1,Math.ceil(e.seconds / 60))) : '--';
   // Without an ETA the header shrinks instead of showing a huge placeholder.
   document.body?.classList.toggle('no-eta', !e.arrived && e.seconds === null);
+  document.body?.classList.toggle('has-destination', Boolean(state.destination));
   $('eta-unit').textContent = e.arrived ? '부근' : '분';
   if (state.route) $('map-tip').textContent = e.seconds !== null ? `${e.arrived ? '도착 부근' : `도보 약 ${Math.max(1,Math.ceil(e.seconds/60))}분`} / 남은 도보 ${shortDistance(e.progress.remaining)}` : e.endpointUncertain ? '보행로 끝점 확인 필요 / 예상 시간 보류' : '위치와 속도 확인 필요 / 예상 시간 보류';
   let note = '실제 도보 경로를 찾기 전에는 도착 시간을 표시하지 않아요.';
@@ -759,10 +783,11 @@ if (savedPace) {
   $('base-speed').value = (state.baseSpeed * 3.6).toFixed(1);
   $('base-speed-value').textContent = `${(state.baseSpeed * 3.6).toFixed(1)} km/h`;
   leaveOnboarding();
-  notice('저장한 내 보행 속도를 불러왔어요. 내 속도 측정에서 언제든 다시 측정할 수 있어요.');
 }
 render();
 
+// With a sharing server configured for this deployment, friends never see or type its address.
+if (SHARING_SERVER_ORIGIN) { $('sharing-server').value = SHARING_SERVER_ORIGIN; $('sharing-server-settings').classList.add('hidden'); }
 meetingUI = initMeetupUI({map,L:mapAPI,askConsent,notice,formatTime,
   getContext:() => ({...state,estimate:estimate(Date.now()),fix:tracker.lastFix}),
   requestGps:startTracking,
@@ -780,7 +805,7 @@ initLoginGate({session:accountSession,
 // An opened invitation belongs to the meeting view.
 if (window.location?.hash?.includes('meeting=1')) showView('meet');
 
-for (const id of ['fit-friends','set-start','set-destination','fit-map']) $(id).addEventListener('click', () => setMore(false));
+for (const id of ['fit-friends','set-start','set-destination','fit-map']) $(id).addEventListener('click', () => { setMore(false); setSheet(false); });
 busPilotUI = initBusPilot({session:accountSession,
   getContext:()=>({...state,estimate:estimate(Date.now())}),
   showStop:async stop=>{
@@ -789,7 +814,7 @@ busPilotUI = initBusPilot({session:accountSession,
       if(!(await askConsent('정류장 지도 보기', `${mapProvider} 지도 서버에 정류장이 있는 지역과 IP를 보내요. 현재 GPS 위치는 보내지 않아요.`)))return;
       enableMap();
     }
-    setMore(false);
+    setMore(false); setSheet(false);
     pilotLayer.clearLayers();
     marker(stop.point,'stop',`${stop.name} / 894번 실제 도착정보`).on('click',()=>{
       showView('bus');

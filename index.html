@@ -20,7 +20,7 @@
   <header class="board">
     <div class="board-top">
       <a class="brand" href="./" aria-label="몇분 걸음 처음 화면">몇분 걸음</a>
-      <div class="board-actions"><button id="onboarding-skip" class="board-button">그만하기</button><button class="board-button" id="account-button">계정</button></div>
+      <div class="board-actions"><button id="onboarding-skip" class="board-button">그만하기</button></div>
     </div>
 
     <div class="hero hero-ob">
@@ -33,24 +33,8 @@
       <p id="onboarding-copy" class="sr-only">평균 속도가 아니라 내가 실제로 걷는 속도로 도착 시간을 알려 드려요.</p>
     </div>
 
-    <div class="hero hero-main">
-      <div class="hero-eta">
-        <div class="hero-label"><span id="eta-label">예상 도착까지</span><span class="live-tag" id="tracking-tag"><i></i>준비 중</span></div>
-        <div class="hero-number"><span id="eta-minutes">--</span><span class="unit" id="eta-unit">분</span></div>
-      </div>
-      <div class="hero-dest">
-        <p class="sr-only">목적지</p><strong id="destination-name">지도에서 목적지를 선택해 주세요</strong><span id="destination-detail" class="sr-only">장소 검색이나 좌표 입력도 가능해요</span>
-        <span id="eta-arrival">목적지를 정하면 여기에 알려드릴게요</span>
-        <button id="clear-destination" class="link-button hidden" aria-label="목적지 지우기">목적지 지우기</button>
-      </div>
-    </div>
-
-    <div class="hero hero-bus">
-      <div class="hero-eta"><span class="hero-label">대구대(정문1)까지 걸어서</span><div class="hero-number"><strong id="pilot-walk-time">—</strong></div></div>
-      <div class="hero-dest"><span id="pilot-walk-detail">실제 도보 경로가 필요해요</span></div>
-    </div>
-
-    <div class="hero hero-meet"><h2>약속</h2></div>
+    
+      
   </header>
 
   <section class="login-gate" aria-labelledby="onboarding-title">
@@ -113,9 +97,31 @@
       
     </section>
 
-    <div class="journey-panel">
+    <button class="scrim" id="sheet-scrim" aria-label="패널 닫고 지도 보기"></button>
+    <div class="sheet">
       <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
       <div id="gps-recovery" class="gps-recovery hidden" role="status"><p id="gps-problem"></p><button id="gps-retry" class="secondary">GPS 다시 시도</button><button id="gps-use-saved" class="secondary">마지막 위치와 저장 속도 사용</button></div>
+      <div class="sheet-board" id="sheet-board">
+        <div class="hero hero-main">
+      <div class="hero-eta">
+        <div class="hero-label"><span id="eta-label">예상 도착까지</span><span class="live-tag" id="tracking-tag"><i></i>준비 중</span></div>
+        <div class="hero-number"><span id="eta-minutes">--</span><span class="unit" id="eta-unit">분</span></div>
+      </div>
+      <div class="hero-dest">
+        <p class="sr-only">목적지</p><strong id="destination-name">지도에서 목적지를 선택해 주세요</strong><span id="destination-detail" class="sr-only">장소 검색이나 좌표 입력도 가능해요</span>
+        <span id="eta-arrival">목적지를 정하면 여기에 알려드릴게요</span>
+        <button id="clear-destination" class="link-button hidden" aria-label="목적지 지우기">목적지 지우기</button>
+      </div>
+    </div>
+        <div class="hero hero-bus">
+      <div class="hero-eta"><span class="hero-label">대구대(정문1)까지 걸어서</span><div class="hero-number"><strong id="pilot-walk-time">—</strong></div></div>
+      <div class="hero-dest"><span id="pilot-walk-detail">실제 도보 경로가 필요해요</span></div>
+    </div>
+        <div class="hero hero-meet"><h2>약속</h2></div>
+      </div>
+      <div class="journey-panel">
+      
+      
 
       <section class="view view-main" aria-label="걷기 정보">
         <section id="walking-navigation" class="navigation-card hidden" aria-label="도보 길 안내">
@@ -222,7 +228,7 @@
           <h3>친구와 함께 <span class="tag tag-outline" id="sharing-badge">서버 설정 필요</span></h3>
           <p class="microcopy">이번 약속에 친구를 초대해요. 친구가 직접 동의한 실제 위치만 지도에 표시해요. 위치 공유는 기본 꺼짐이고 언제든 중지할 수 있어요.</p>
           <div id="room-setup">
-          <details class="connection-settings" open><summary>공유 서버 연결</summary><div class="stack-form"><label for="sharing-server">내가 운영하거나 신뢰하는 HTTPS 서버</label><input id="sharing-server" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://my-meeting-server.example"><p class="microcopy">GitHub Pages만으로 기기 간 공유는 되지 않아요. 포함된 서버를 별도로 배포해야 해요. 아직 어떤 서버에도 연결하지 않았어요.</p></div></details>
+          <details class="connection-settings" id="sharing-server-settings" open><summary>공유 서버 연결</summary><div class="stack-form"><label for="sharing-server">내가 운영하거나 신뢰하는 HTTPS 서버</label><input id="sharing-server" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://my-meeting-server.example"><p class="microcopy">GitHub Pages만으로 기기 간 공유는 되지 않아요. 포함된 서버를 별도로 배포해야 해요. 아직 어떤 서버에도 연결하지 않았어요.</p></div></details>
           <div class="stack-form"><label for="friend-name">친구들에게 보여 줄 이름</label><input id="friend-name" maxlength="24" autocomplete="off" placeholder="예: 지민"><button id="create-room" class="secondary wide">선택한 목적지로 약속 만들기</button></div>
           <details class="connection-settings"><summary>받은 초대 링크로 참여하기</summary><div class="stack-form"><label for="invite-input">초대 링크</label><input id="invite-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="친구에게 받은 링크를 붙여 넣으세요"><button id="join-room" class="secondary">초대 확인 후 참여</button></div></details>
         </div>
@@ -241,14 +247,16 @@
         </section>
         </div>
       </section>
+      </div>
     </div>
   </main>
 
   <nav class="tabbar" aria-label="화면 이동">
-    <button id="view-main" aria-current="page">길찾기</button>
+    <button id="view-main">길찾기</button>
     <button id="view-bus">버스</button>
     <button id="view-meet">약속</button>
     <button id="recalibrate-button">내 속도</button>
+    <button id="account-button">계정</button>
   </nav>
 </div>
 
