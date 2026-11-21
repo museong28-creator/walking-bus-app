@@ -1,4 +1,4 @@
-const CACHE = 'my-pace-static-v28';
+const CACHE = 'my-pace-static-v30';
 // One URL per file and no ?v= query strings, here or in any import. Two different URLs for the
 // same module are loaded as two separate module instances with separate state.
 // tests/modules.test.mjs fails when a source file is missing from this list.

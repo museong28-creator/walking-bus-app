@@ -153,6 +153,8 @@ details p { font-size: 14px; color: var(--sub); }
 .ob-meter .row { min-height: 42px; padding: 4px 0; }
 .ob-meter .row strong { font-size: 17px; }
 .ob-meter .row-progress { padding: 8px 0; gap: 6px; }
+.ob-meter .row-progress label { font-size: 16px; font-weight: 700; color: var(--ink); }
+.ob-meter progress { height: 20px; }
 .onboarding-card .note-box { padding: 8px 12px; font-size: 13px; }
 /* The location map shows only while a measurement is running. */
 body:not(.measuring) .ob-mini-map { display: none; }
