@@ -40,6 +40,8 @@ function renderCalibration() {
   const usable = fresh && tracker.status === 'measured' && tracker.current >= 0.4;
   const ready = calibrationReady();
   const stoppedReady = ready && !state.tracking;
+  // The yellow header swaps its headline for the live speed readout while measuring.
+  document.body?.classList.toggle('measuring', active || stoppedReady);
   $('onboarding-speed').textContent = calibration.done ? (state.baseSpeed * 3.6).toFixed(1) : stoppedReady ? (calibration.values.reduce((a,b)=>a+b,0) / calibration.values.length * 3.6).toFixed(1) : usable && active ? (tracker.current * 3.6).toFixed(1) : '—';
   $('onboarding-speed-label').textContent = calibration.done || stoppedReady ? '이번 측정 평균 속도' : '현재 보행 속도';
   $('onboarding-status').textContent = calibration.done ? '측정 완료' : state.gpsIssue ? '위치 확인 필요' : !active ? fresh ? '위치 확인 완료' : state.tracking ? '위치 확인 중' : '측정 준비' : !state.tracking ? '측정 중지' : !fresh ? '위치 신호 기다리는 중' : ready ? '이 속도를 사용할 수 있어요' : '내 걸음 측정 중';
@@ -104,11 +106,20 @@ $('recalibrate-button').addEventListener('click', () => {
   $('onboarding-title').textContent = '내 걸음 속도 측정하기';
   state.gpsIssue = ''; renderCalibration();refreshMaps();window.scrollTo?.({top:0,behavior:'smooth'});
 });
-$('onboarding-theme').addEventListener('click', () => {
-  const light = document.body?.classList.toggle('ob-light');
-  $('onboarding-theme').setAttribute?.('aria-label', light ? '어두운 화면으로 전환' : '밝은 화면으로 전환');
+// One page, three views that share the same map. The view only decides which header and panel show.
+function showView(view) {
+  document.body?.setAttribute?.('data-view', view);
+  for (const name of ['main','bus','meet']) {
+    if (name === view) $(`view-${name}`).setAttribute?.('aria-current','page');
+    else $(`view-${name}`).removeAttribute?.('aria-current');
+  }
+  refreshMaps();
+}
+for (const name of ['main','bus','meet']) $(`view-${name}`).addEventListener('click', () => {
+  // Leaving a pace measurement through the tabs keeps the previously saved pace.
+  if (document.body?.classList.contains('onboarding')) { if (state.tracking) stopTracking(); leaveOnboarding(); render(); }
+  showView(name); window.scrollTo?.({top:0,behavior:'auto'});
 });
-$('journey-theme').addEventListener('click', () => document.body?.classList.toggle('ob-light'));
 const state = {start:null, position:null, destination:null, route:null, routes:[], selectedRoute:0, lampResults:null, lampBusy:false, lampMessage:'등록 가로등 정보는 별도로 조회해요. 실제 밝기/점등 상태는 알 수 없어요.', tracking:false, watchId:null, watchEpoch:0,
   speedOrigin:'default', baseSpeed:4.3 / 3.6, mapEnabled:false, pickingStart:false, demo:false, demoProgress:0, demoSpeed:DEFAULT_SPEED,
   busArrival:null, requestEpoch:0, routeBusy:false, stopBusy:false, lastGoodFix:0, trackingStarted:0, gpsIssue:'', wakeLock:null};
@@ -145,7 +156,7 @@ function shortDistance(meters) { return meters >= 1000 ? `${(meters / 1000).toFi
 function formatTime(timestamp) { return new Intl.DateTimeFormat('ko-KR', {hour:'numeric',minute:'2-digit'}).format(timestamp); }
 function coordinateLabel(point) { return `${point[0].toFixed(5)}, ${point[1].toFixed(5)}`; }
 function marker(point, kind, label) {
-  const icon = mapAPI.divIcon({className:`point-marker ${kind}`,html:`<div>${kind === 'stop' ? '▣' : ''}</div>`,iconSize:[22,22],iconAnchor:[11,11]});
+  const icon = mapAPI.divIcon({className:`point-marker ${kind}`,html:'<div></div>',iconSize:[22,22],iconAnchor:[11,11]});
   const item = mapAPI.marker(point,{icon,keyboard:true,alt:label});
   const content = document.createElement('span'); content.textContent = label;
   return item.bindPopup(content);
@@ -333,7 +344,7 @@ function stopTracking() {
   if (state.watchId !== null) navigator.geolocation?.clearWatch(state.watchId);
   state.watchId = null; state.tracking = false;
   state.wakeLock?.release().catch(() => {}); state.wakeLock = null;
-  $('gps-button').innerHTML = '<span aria-hidden="true">◎</span> 내 위치로 걷기 시작';
+  $('gps-button').innerHTML = '내 위치로 걷기 시작';
 }
 function startTracking() {
   if (state.tracking) return;
@@ -342,7 +353,7 @@ function startTracking() {
   if (state.demo) exitDemo();
   tracker.reset(); state.lastGoodFix = 0; state.trackingStarted = Date.now(); state.gpsIssue = ''; state.tracking = true;
   const watchEpoch = ++state.watchEpoch;
-  $('gps-button').innerHTML = '<span aria-hidden="true">Ⅱ</span> 걷기 측정 멈추기';
+  $('gps-button').innerHTML = '걷기 측정 멈추기';
   $('gps-note').textContent = 'GPS는 기본적으로 이 기기에서 처리해요. 온라인 지도에는 표시 지역이 전달되고, 친구 위치 공유는 별도 동의 후 켜요.';
   notice('브라우저의 위치 권한을 허용해 주세요. 처음에는 정확한 위치를 잡는 데 시간이 걸릴 수 있어요.');
   render(); requestWakeLock(watchEpoch);
@@ -403,7 +414,7 @@ function locationStatus(message) {
 }
 function finishLocate(message = '') {
   locating = false; clearTimeout(locateTimer);
-  $('locate-me').disabled = false; $('locate-me').textContent = '◎ 내 위치';
+  $('locate-me').disabled = false; $('locate-me').textContent = '내 위치';
   locationStatus(message);
 }
 function cancelLocate() { locateEpoch++; finishLocate(); }
@@ -531,7 +542,7 @@ async function findStops() {
   finally { if (controller === stopController) { state.stopBusy = false; render(); } }
 }
 $('stops-button').addEventListener('click', findStops);
-$('map-stops').addEventListener('click', () => { $('bus-tools').open = true; return findStops(); });
+$('map-stops').addEventListener('click', () => { showView('bus'); return findStops(); });
 
 $('bus-form').addEventListener('submit', event => {
   event.preventDefault();
@@ -620,8 +631,8 @@ function render() {
   $('route-button').textContent = state.routeBusy ? '경로 찾는 중…' : state.route ? '도보 경로 다시 찾기' : '경로와 도착 시간 계산하기';
   $('stops-button').disabled = state.stopBusy;
   $('map-stops').disabled = state.stopBusy;
-  $('map-stops').textContent = state.stopBusy ? '조회 중…' : '▣ 정류장';
-  $('stops-button').textContent = state.stopBusy ? '정류장 찾는 중…' : '주변 700m 정류장 찾기 ↗';
+  $('map-stops').textContent = state.stopBusy ? '조회 중…' : '정류장';
+  $('stops-button').textContent = state.stopBusy ? '정류장 찾는 중…' : '주변 700m 정류장 찾기';
   const speedValid = Number.isFinite(e.speed) && !e.stale && !e.unreliable;
   $('walking-speed').textContent = speedValid ? `${(e.speed * 3.6).toFixed(1)} km/h` : '--';
   $('journey-pace-note').textContent = state.demo ? '가상 체험 / 실제 보행 기록이 아니에요' : state.speedOrigin === 'calibrated' ? `내 측정 평균 ${(state.baseSpeed * 3.6).toFixed(1)} km/h / GPS 추정치` : `${state.speedOrigin === 'manual' ? '직접 설정' : '기본'} 속도 ${(state.baseSpeed * 3.6).toFixed(1)} km/h / 실제 측정값이 아니에요`;
@@ -631,6 +642,8 @@ function render() {
   $('eta-label').textContent = state.demo ? '가상 경로 예상 도착까지' : '예상 도착까지';
   $('remaining-distance').textContent = e.progress ? shortDistance(e.progress.remaining) : '--';
   $('eta-minutes').textContent = e.arrived ? '도착' : e.seconds !== null ? String(Math.max(1,Math.ceil(e.seconds / 60))) : '--';
+  // Without an ETA the header shrinks instead of showing a huge placeholder.
+  document.body?.classList.toggle('no-eta', !e.arrived && e.seconds === null);
   $('eta-unit').textContent = e.arrived ? '부근' : '분';
   if (state.route) $('map-tip').textContent = e.seconds !== null ? `${e.arrived ? '도착 부근' : `도보 약 ${Math.max(1,Math.ceil(e.seconds/60))}분`} / 남은 도보 ${shortDistance(e.progress.remaining)}` : e.endpointUncertain ? '보행로 끝점 확인 필요 / 예상 시간 보류' : '위치와 속도 확인 필요 / 예상 시간 보류';
   let note = '실제 도보 경로를 찾기 전에는 도착 시간을 표시하지 않아요.';
@@ -740,6 +753,9 @@ meetingUI = initMeetupUI({map,L:mapAPI,askConsent,notice,formatTime,
   selectDestination:(point,name) => { if (state.demo) exitDemo(); setDestination(point,name,'친구와의 약속 장소'); fitMap(); }
 });
 
+// An opened invitation belongs to the meeting view.
+if (window.location?.hash?.includes('meeting=1')) showView('meet');
+
 busPilotUI = initBusPilot({session:accountSession,
   getContext:()=>({...state,estimate:estimate(Date.now())}),
   showStop:async stop=>{
@@ -750,7 +766,7 @@ busPilotUI = initBusPilot({session:accountSession,
     }
     pilotLayer.clearLayers();
     marker(stop.point,'stop',`${stop.name} / 894번 실제 도착정보`).on('click',()=>{
-      $('bus-tools').open=true;$('pilot-card').scrollIntoView?.({behavior:'smooth',block:'center'});
+      showView('bus');
     }).addTo(pilotLayer);
     map.setView(stop.point,17);$('map').scrollIntoView?.({behavior:'smooth',block:'start'});
     $('map-caption').textContent='대구대(정문1) / 공식 정류소 05633 / 현재 위치가 아니에요';

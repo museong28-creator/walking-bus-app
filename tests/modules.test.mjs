@@ -51,3 +51,18 @@ test('the offline cache lists every source file once, and only files that exist'
 test('the offline fallback revalidates with the server so releases never mix old and new modules', async () => {
   assert.match(await read('sw.js'), /fetch\(event\.request,\{cache:'no-cache'\}\)/);
 });
+
+test('every element id the scripts look up exists exactly once in the page', async () => {
+  const html = await read('index.html');
+  const declared = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
+  assert.equal(new Set(declared).size, declared.length, 'duplicate id in index.html');
+  const wanted = new Set();
+  for (const name of sources) {
+    for (const match of (await read(`src/${name}`)).matchAll(/\$\('([a-z0-9-]+)'\)/g)) wanted.add(match[1]);
+  }
+  assert.ok(wanted.size > 100, `only ${wanted.size} lookups were found; the scanner is broken`);
+  const missing = [...wanted].filter(id => !declared.includes(id));
+  assert.deepEqual(missing, []);
+  // The three views share one map and are switched by these tabs.
+  for (const id of ['view-main', 'view-bus', 'view-meet', 'recalibrate-button']) assert.ok(declared.includes(id), id);
+});
