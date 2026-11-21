@@ -1,10 +1,10 @@
-const CACHE = 'my-pace-static-v31';
+const CACHE = 'my-pace-static-v33';
 // One URL per file and no ?v= query strings, here or in any import. Two different URLs for the
 // same module are loaded as two separate module instances with separate state.
 // tests/modules.test.mjs fails when a source file is missing from this list.
 const FILES = [
   './', './index.html', './styles.css', './manifest.webmanifest',
-  './src/app.js', './src/account-ui.js', './src/bus-pilot.js', './src/core.js',
+  './src/app.js', './src/sheet.js', './src/account-ui.js', './src/bus-pilot.js', './src/core.js',
   './src/firebase-config.js', './src/firebase-session.js', './src/login-gate.js', './src/map-adapter.js', './src/map-config.js',
   './src/meeting.js', './src/meetup-ui.js', './src/navigation-client.js', './src/navigation.js',
   './src/services.js', './src/sharing.js',
