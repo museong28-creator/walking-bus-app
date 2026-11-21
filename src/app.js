@@ -13,7 +13,8 @@ const mapProvider = KAKAO_JAVASCRIPT_KEY.trim() ? 'Kakao' : 'OpenStreetMap';
 const $ = id => document.getElementById(id);
 const accountSession=initAccountUI();
 $('map-provider-consent').textContent = `지도를 켜면 화면에 보이는 지역과 IP가 ${mapProvider} 지도 서버에 전달돼요.`;
-$('onboarding-map').textContent = `지도 켜고 내 위치 확인 / ${mapProvider} 연결 동의`;
+$('onboarding-map').textContent = `시작하기 · ${mapProvider} 지도 연결 동의`;
+$('onboarding-map-status').textContent = `시작하면 화면에 보이는 지역과 IP가 ${mapProvider} 지도 서버에 전달되고, 위치 권한을 요청해요.`;
 const tracker = new SpeedTracker();
 const calibration = {active:false, done:false, started:0, first:0, values:[], accuracy:null, message:'', lastSample:0};
 // Store only the chosen pace, never coordinates or the recorded GPS samples.
@@ -99,7 +100,7 @@ $('onboarding-finish').addEventListener('click', () => {
 $('onboarding-skip').addEventListener('click', () => {if (state.tracking) stopTracking();leaveOnboarding();render();});
 $('recalibrate-button').addEventListener('click', () => {
   if (state.tracking) stopTracking();
-  $('onboarding-skip').classList.remove('ob-primary'); $('onboarding-skip').textContent = '나중에 측정하고 지도 보기';
+  $('onboarding-skip').classList.remove('ob-primary'); $('onboarding-skip').textContent = '그만하기';
   $('onboarding-map-view').classList.toggle('hidden', !state.mapEnabled); calibration.accuracy = null;
   document.body?.classList.add('onboarding');$('onboarding-card').classList.remove('hidden');
   Object.assign(calibration,{done:false,active:false,readyAtStop:false,started:0,stopped:0,first:0,values:[],lastSample:0,accuracy:null,message:'측정하기를 누르면 새로운 표본으로 시작해요. 기존 속도는 새 측정을 완료할 때까지 유지돼요.'});
@@ -220,6 +221,8 @@ $('consent-dialog').addEventListener('cancel', event => { event.preventDefault()
 
 function enableMap() {
   if (state.mapEnabled) return;
+  // Agreeing once unlocks the rest of the first-visit flow, even if the map itself then fails to load.
+  document.body?.classList.add('map-agreed');
   tileWarning = false; state.mapEnabled = true; $('onboarding-map-view').classList.remove('hidden'); $('onboarding-map').classList.add('hidden'); $('onboarding-map-status').textContent = '온라인 지도를 불러오고 있어요. 위치 측정 후 내 위치로 이동해요.'; calibrationTiles.addTo(calibrationMap); tiles.addTo(map); $('map-gate').classList.add('hidden');
   $('map-caption').textContent = state.position ? `지도: ${mapProvider} / 실제 현장 상황과 다를 수 있어요` : '초기 지도: 서울 시청 / 현재 위치가 아니에요';
   refreshMaps();
@@ -720,7 +723,7 @@ function startDemo() {
   state.destination = {point:DEMO_POINTS.at(-1),name:'가상 목적지 / 도보 체험',source:'가상 데이터'};
   state.route = {points:DEMO_POINTS,distance:pathDistance(DEMO_POINTS),source:'가상 체험'};
   $('destination-name').textContent = state.destination.name; $('destination-detail').textContent = '가상 위치와 경로 / 실제 길 안내가 아니에요';
-  $('clear-destination').classList.remove('hidden'); $('demo-banner').classList.remove('hidden'); $('map-gate').classList.add('hidden');
+  $('clear-destination').classList.remove('hidden'); $('map-gate').classList.add('hidden');
   $('set-start').classList.add('hidden');
   $('map-caption').textContent = state.mapEnabled ? '지도 위 가상 경로 / 실제 보행로가 아니에요' : '온라인 지도 꺼짐 / 가상 경로만 표시 중';
   $('map-tip').textContent = '가상 이동에 따라 남은 시간과 거리가 바뀌어요';
@@ -728,7 +731,7 @@ function startDemo() {
 }
 function exitDemo() {
   state.demo = false; state.position = null; state.start = null; state.route = null; state.destination = null; state.busArrival = null;
-  $('demo-banner').classList.add('hidden'); $('destination-name').textContent = '지도에서 목적지를 선택해 주세요';
+  $('destination-name').textContent = '지도에서 목적지를 선택해 주세요';
   $('set-start').classList.remove('hidden');
   $('destination-detail').textContent = '장소 검색이나 좌표 입력도 가능해요'; $('clear-destination').classList.add('hidden');
   $('map-tip').textContent = '지도를 눌러 목적지를 정하세요';
@@ -736,7 +739,7 @@ function exitDemo() {
   $('map-caption').textContent = state.mapEnabled ? '초기 지도: 서울 시청 / 현재 위치가 아니에요' : '온라인 지도 꺼짐';
   draw(); render();
 }
-$('demo-button').addEventListener('click',startDemo); $('offline-demo').addEventListener('click',startDemo); $('exit-demo').addEventListener('click',exitDemo);
+
 setInterval(() => {
   const now = Date.now(), delta = Math.min(2,(now - lastTick) / 1000); lastTick = now;
   checkGpsWait(now);
@@ -748,6 +751,8 @@ setInterval(() => {
   render();
 },1000);
 const savedPace = readPace();
+// First visit: the map connection must be agreed to before anything else is offered.
+if (!savedPace) document.body?.classList.add('first-visit');
 if (savedPace) {
   state.baseSpeed = savedPace.speed; state.speedOrigin = savedPace.origin === 'manual' ? 'manual' : 'calibrated';
   $('base-speed').value = (state.baseSpeed * 3.6).toFixed(1);
@@ -767,7 +772,7 @@ meetingUI = initMeetupUI({map,L:mapAPI,askConsent,notice,formatTime,
 // An opened invitation belongs to the meeting view.
 if (window.location?.hash?.includes('meeting=1')) showView('meet');
 
-$('fit-friends').addEventListener('click', () => setMore(false));
+for (const id of ['fit-friends','set-start','set-destination','fit-map']) $(id).addEventListener('click', () => setMore(false));
 busPilotUI = initBusPilot({session:accountSession,
   getContext:()=>({...state,estimate:estimate(Date.now())}),
   showStop:async stop=>{

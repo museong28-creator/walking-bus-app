@@ -54,7 +54,7 @@ body:not(.onboarding)[data-view="meet"] .hero-meet { display: flex; align-items:
 .hero-number > * { font-weight: 900; }
 .hero-number .unit { font-size: 30px; letter-spacing: -1px; }
 .hero-bus .hero-number { font-size: 48px; line-height: 1.05; }
-.no-eta .hero-main .hero-number, .hero-number:has(.empty) { display: none; }
+.no-eta .hero-main .hero-number, .hero-bus .hero-number:has(.empty) { display: none; }
 .no-eta .hero-main, .hero-bus:has(.empty) { flex-direction: column; align-items: flex-start !important; gap: 2px !important; }
 .hero-dest { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; padding-bottom: 2px; font-size: 13px; }
 .hero-dest strong { font-size: 16px; font-weight: 900; line-height: 1.25; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
@@ -66,8 +66,14 @@ body:not(.onboarding)[data-view="meet"] .hero-meet { display: flex; align-items:
 .hero h1 { font-size: 40px; font-weight: 900; line-height: 1.1; letter-spacing: -1.5px; padding: 6px 0 4px; }
 .hero h2 { flex: none; font-size: 28px; font-weight: 900; line-height: 1.1; }
 .ob-readout { display: none; flex-direction: column; gap: 2px; }
-.measuring .ob-readout { display: flex; }
-.measuring #onboarding-title, .measuring .hero-ob .hero-copy { display: none; }
+.map-agreed .ob-readout { display: flex; }
+.map-agreed #onboarding-title { display: none; }
+.hero-ob .hero-number { font-size: 96px; }
+.hero-ob .hero-number .unit { font-size: 30px; }
+.board-actions { display: flex; gap: 6px; }
+#onboarding-skip, .onboarding #account-button { display: none; }
+.onboarding #onboarding-skip { display: block; }
+.onboarding.first-visit:not(.map-agreed) #onboarding-skip { display: none; }
 strong.empty { font-weight: 400 !important; color: var(--sub); }
 #onboarding-pace { font-size: 14px; font-weight: 700; }
 .live-tag { display: inline-block; padding: 1px 7px; border-radius: 4px; background: var(--ink); color: var(--yellow); font-size: 12px; font-weight: 700; }
@@ -131,9 +137,13 @@ details p { font-size: 14px; color: var(--sub); }
 .ob-steps div { display: flex; flex-direction: column; }
 .ob-steps strong { font-size: 16px; font-weight: 900; }
 .ob-steps span { font-size: 12px; color: var(--sub); }
-.ob-meter { display: none; }
-.measuring .ob-meter { display: flex; }
-.measuring .ob-steps { display: none; }
+/* Step 1 is only the agreement. Everything about measuring appears after it. */
+.ob-meter, .ob-keep-on, body:not(.map-agreed) #onboarding-start, body:not(.map-agreed) #more-ob, body:not(.map-agreed) .ob-mini-map { display: none; }
+.map-agreed .ob-meter { display: flex; }
+.map-agreed .ob-keep-on { display: block; }
+.map-agreed .ob-steps { display: none; }
+#onboarding-map.hidden + #onboarding-map-status { display: none; }
+#onboarding-map-status { text-align: center; }
 .ob-meter .row { min-height: 42px; padding: 4px 0; }
 .ob-meter .row strong { font-size: 17px; }
 .ob-meter .row-progress { padding: 8px 0; gap: 6px; }
@@ -161,17 +171,12 @@ details p { font-size: 14px; color: var(--sub); }
 .map-gate h2 { font-size: 17px; font-weight: 900; }
 .map-gate .primary { min-height: 46px; }
 .map-gate small { font-size: 11px; color: var(--sub); }
-.map-gate:not(.hidden) ~ .locate-control, .map-gate:not(.hidden) ~ .map-strip { display: none; }
-.demo-banner { position: absolute; z-index: 450; left: 10px; top: 62px; display: flex; align-items: center; gap: 8px; padding: 3px 3px 3px 10px; border-radius: 8px; background: var(--ink); color: var(--paper); font-size: 12px; font-weight: 700; }
-.demo-banner button { min-height: 36px; padding: 0 12px; border: 0; border-radius: 6px; background: var(--yellow); color: var(--ink); font-weight: 700; }
+.map-gate:not(.hidden) ~ .locate-control { display: none; }
 .locate-control { position: absolute; z-index: 450; right: 10px; bottom: 10px; min-height: 44px; padding: 0 12px; border: var(--rule); border-radius: 8px; background: var(--paper); font-size: 14px; font-weight: 700; }
 .map-location-status { position: absolute; z-index: 450; right: 10px; bottom: 60px; max-width: 70%; padding: 5px 9px; border-radius: 6px; background: var(--ink); color: var(--paper); font-size: 12px; }
-.map-strip { position: absolute; z-index: 440; left: 10px; bottom: 10px; max-width: calc(100% - 110px); display: flex; flex-direction: column; padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,.94); font-size: 11px; line-height: 1.4; color: var(--sub); }
-.map-strip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.map-tip { font-size: 12px; font-weight: 700; color: var(--ink); }
-.map-tools { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: var(--rule); }
-.map-tools button { min-height: 40px; padding: 0 4px; border: 0; background: var(--paper); font-size: 13px; font-weight: 700; }
-.map-tools button + button { border-left: 1px solid var(--ink); }
+.map-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: var(--rule); border-radius: 10px; overflow: hidden; }
+.map-tools button { min-height: 48px; padding: 0 4px; border: 0; background: var(--paper); font-size: 13px; font-weight: 700; }
+.map-tools button { border: 1px solid var(--ink); }
 .map-tools button[aria-pressed="true"] { background: var(--ink); color: var(--yellow); }
 .point-marker { background: transparent; border: 0; }
 .point-marker > div { width: 22px; height: 22px; border: 3px solid var(--ink); border-radius: 50%; background: var(--yellow); }

@@ -20,7 +20,7 @@
   <header class="board">
     <div class="board-top">
       <a class="brand" href="./" aria-label="몇분 걸음 처음 화면">몇분 걸음</a>
-      <button class="board-button" id="account-button">계정</button>
+      <div class="board-actions"><button id="onboarding-skip" class="board-button">그만하기</button><button class="board-button" id="account-button">계정</button></div>
     </div>
 
     <div class="hero hero-ob">
@@ -30,7 +30,7 @@
         <div class="hero-number"><strong id="onboarding-speed">—</strong><small class="unit">km/h</small></div>
         <span id="onboarding-pace">아직 측정하지 않았어요</span>
       </div>
-      <p id="onboarding-copy" class="hero-copy">평균 속도가 아니라 내가 실제로 걷는 속도로 도착 시간을 알려 드려요.</p>
+      <p id="onboarding-copy" class="sr-only">평균 속도가 아니라 내가 실제로 걷는 속도로 도착 시간을 알려 드려요.</p>
     </div>
 
     <div class="hero hero-main">
@@ -39,7 +39,7 @@
         <div class="hero-number"><span id="eta-minutes">--</span><span class="unit" id="eta-unit">분</span></div>
       </div>
       <div class="hero-dest">
-        <p class="sr-only">목적지</p><strong id="destination-name">지도에서 목적지를 선택해 주세요</strong><span id="destination-detail">장소 검색이나 좌표 입력도 가능해요</span>
+        <p class="sr-only">목적지</p><strong id="destination-name">지도에서 목적지를 선택해 주세요</strong><span id="destination-detail" class="sr-only">장소 검색이나 좌표 입력도 가능해요</span>
         <span id="eta-arrival">목적지를 정하면 여기에 알려드릴게요</span>
         <button id="clear-destination" class="link-button hidden" aria-label="목적지 지우기">목적지 지우기</button>
       </div>
@@ -50,7 +50,7 @@
       <div class="hero-dest"><span id="pilot-walk-detail">실제 도보 경로가 필요해요</span></div>
     </div>
 
-    <div class="hero hero-meet"><h2>약속</h2><p class="hero-copy">시간에 맞는지 보고, 동의한 친구와 위치를 함께 봐요.</p></div>
+    <div class="hero hero-meet"><h2>약속</h2></div>
   </header>
 
   <section id="onboarding-card" class="onboarding-card" aria-labelledby="onboarding-title">
@@ -65,21 +65,19 @@
       <div class="row"><span>위치 정확도</span><strong id="onboarding-accuracy">—</strong></div>
       <div class="row row-progress"><label id="onboarding-progress-label" for="onboarding-progress">사용 가능한 보행 표본 0 / 30초</label><progress id="onboarding-progress" max="30" value="0"></progress></div>
     </div>
-    <p id="onboarding-map-status" class="note-box" role="status">아래 버튼으로 지도와 현재 위치를 확인한 뒤 걷는 속도를 측정해 주세요.</p>
-    <button id="onboarding-map" class="secondary wide">지도 켜고 내 위치 확인</button>
+    <p class="note-box ob-keep-on">화면을 켜 두세요. 화면을 잠그거나 다른 앱으로 이동하면 측정이 멈춰요.</p>
     <div id="onboarding-map-view" class="ob-mini-map hidden" aria-label="측정한 내 위치 지도"></div>
     <div id="onboarding-recovery" class="gps-recovery hidden" role="status"><p id="onboarding-problem"></p><button id="onboarding-retry" class="secondary">위치와 속도 다시 측정</button><button id="onboarding-manual" class="link-button">속도 직접 입력</button></div>
-    
-    
     <div class="ob-actions">
+      <button id="onboarding-map" class="primary wide">시작하기 · 지도 연결 동의</button>
+      <p id="onboarding-map-status" class="microcopy" role="status">시작하면 화면에 보이는 지역과 IP가 지도 서버에 전달되고, 위치 권한을 요청해요.</p>
       <button id="onboarding-start" class="primary wide">걷는 속도 측정 시작</button>
       <button id="onboarding-finish" class="primary wide hidden" disabled>이 속도 사용하기</button>
       <button id="onboarding-stop" class="link-button hidden">측정 중지</button>
-      <div class="link-row"><button id="onboarding-skip" class="link-button">나중에 측정하고 지도 보기</button><button id="more-ob" class="link-button">직접 입력 · 도움말</button></div>
+      <button id="more-ob" class="link-button">속도를 직접 입력할게요</button>
     </div>
-    
-    
     <div class="more">
+      
       <div class="more-head"><strong>속도 측정 도움말</strong><button class="board-button" id="more-close-ob">닫기</button></div>
       <div id="onboarding-feedback" class="microcopy" role="status" aria-live="polite">위치 권한은 아래 버튼을 누른 뒤 요청해요. 완료한 보행 속도만 이 기기에 저장해 다음 방문에도 사용해요. GPS 이동 기록은 저장하지 않아요.</div>
       <p class="microcopy">iPhone에서는 화면을 켜 두세요. 화면을 잠그거나 다른 앱으로 이동하면 측정이 중지돼요.</p>
@@ -101,15 +99,12 @@
         <div class="map-gate" id="map-gate">
           <h2>지도를 켜고 목적지를 골라보세요</h2>
           <button id="enable-map" class="primary">온라인 지도 켜기</button>
-          <button id="offline-demo" class="link-button">데이터 없이 체험하기</button>
           <small id="map-provider-consent">지도를 켜면 화면에 보이는 지역과 IP가 지도 서버에 전달돼요.</small>
         </div>
-        <div id="demo-banner" class="demo-banner hidden">체험 모드 / 가상 위치와 가상 경로 <button id="exit-demo">종료</button></div>
         <button id="locate-me" class="locate-control" type="button" aria-label="현재 위치로 지도 이동" title="GPS로 현재 위치를 확인하고 지도를 이동합니다">내 위치</button>
-        <p class="map-strip"><span class="map-tip" id="map-tip">지도를 눌러 목적지를 정하세요</span><span class="map-caption" id="map-caption">초기 지도: 서울 시청 / 현재 위치가 아니에요</span></p>
+        <p class="map-strip sr-only"><span class="map-tip" id="map-tip">지도를 눌러 목적지를 정하세요</span><span class="map-caption" id="map-caption">초기 지도: 서울 시청 / 현재 위치가 아니에요</span></p>
         <p id="map-location-status" class="map-location-status hidden" role="status" aria-live="polite"></p>
       </div>
-      <div class="map-tools" role="group" aria-label="지도에서 지정할 지점"><button id="set-start" aria-pressed="false" title="지도를 눌러 출발지 지정">출발지 지정</button><button id="set-destination" aria-pressed="true" title="지도를 눌러 목적지 지정">목적지 지정</button><button id="map-stops" title="주변 정류장 찾기 / 실시간 버스 미연결">정류장</button><button id="fit-map" title="출발지와 목적지 함께 보기" aria-label="전체 경로 보기">전체 보기</button></div>
       
     </section>
 
@@ -135,6 +130,8 @@
         </div>
         <div class="more">
           <div class="more-head"><strong>자세히</strong><button class="board-button" id="more-close-main">닫기</button></div>
+          <h3>지도 도구</h3>
+          <div class="map-tools" role="group" aria-label="지도에서 지정할 지점"><button id="set-start" aria-pressed="false" title="지도를 눌러 출발지 지정">출발지 지정</button><button id="set-destination" aria-pressed="true" title="지도를 눌러 목적지 지정">목적지 지정</button><button id="map-stops" title="주변 정류장 찾기 / 실시간 버스 미연결">정류장</button><button id="fit-map" title="출발지와 목적지 함께 보기" aria-label="전체 경로 보기">전체 보기</button></div>
           <p id="journey-pace-note" class="microcopy" role="status">기본 속도 4.3 km/h / 아직 측정하지 않았어요</p>
           <p class="microcopy" id="estimate-note">실제 도보 경로를 찾기 전에는 도착 시간을 표시하지 않아요.</p>
           <p class="microcopy">길 안내는 경로 기준 방향이며 휴대폰이 향한 방향이 아니에요. GPS 오차나 겹치는 길에서는 잘못 안내될 수 있으니 횡단보도와 현장 표지를 우선 확인하세요. 음성/백그라운드 안내와 자동 재탐색은 지원하지 않아요.</p>
@@ -148,7 +145,7 @@
         <button id="lamp-button" class="secondary wide" disabled>등록 가로등 비교하기</button>
         <p id="lamp-status" class="microcopy" role="status"></p>
       </section>
-          <div class="link-row"><button id="edit-pace" class="link-button">저장 속도 직접 바꾸기</button><button class="link-button" id="demo-button">가상 체험해 보기</button></div>
+          <div class="link-row"><button id="edit-pace" class="link-button">저장 속도 직접 바꾸기</button></div>
           <details class="settings" id="speed-settings"><summary>속도 설정과 이용 안내</summary>
         <div class="settings-content">
           <label for="base-speed">이 기기에 저장할 보행 속도 <strong id="base-speed-value">4.3 km/h</strong></label>
