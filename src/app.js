@@ -61,7 +61,7 @@ function renderCalibration() {
   $('onboarding-stop').classList.toggle('hidden', !state.tracking);
   const seconds = calibration.first ? Math.min(30, Math.floor((calibration.lastSample-calibration.first)/1000)) : 0;
   $('onboarding-progress').value = seconds;
-  $('onboarding-progress-label').textContent = ready ? '측정 준비 완료' : `사용 가능한 보행 표본 ${seconds} / 30초`;
+  $('onboarding-progress-label').textContent = ready ? '30초 다 걸었어요. 이 속도를 사용할 수 있어요.' : `30초 중 ${seconds}초 걸었어요`;
   $('onboarding-recovery').classList.toggle('hidden', !state.gpsIssue);
   $('onboarding-problem').textContent = state.gpsIssue;
   if (calibration.message) $('onboarding-feedback').textContent = calibration.message;

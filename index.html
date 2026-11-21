@@ -52,9 +52,9 @@
   <section id="onboarding-card" class="onboarding-card" aria-labelledby="onboarding-title">
     <div id="onboarding-map-view" class="ob-mini-map hidden" aria-label="측정한 내 위치 지도"></div>
     <div class="rows ob-meter">
-      <div class="row"><span>측정 시간</span><strong id="onboarding-time">00:00</strong></div>
+      <div class="sr-only"><span>측정 시간</span><strong id="onboarding-time">00:00</strong></div>
       <div class="row"><span>위치 정확도</span><strong id="onboarding-accuracy">—</strong></div>
-      <div class="row row-progress"><label id="onboarding-progress-label" for="onboarding-progress">사용 가능한 보행 표본 0 / 30초</label><progress id="onboarding-progress" max="30" value="0"></progress></div>
+      <div class="row row-progress"><label id="onboarding-progress-label" for="onboarding-progress">30초 중 0초 걸었어요</label><progress id="onboarding-progress" max="30" value="0"></progress></div>
     </div>
     <div id="onboarding-recovery" class="gps-recovery hidden" role="status"><p id="onboarding-problem"></p><button id="onboarding-retry" class="secondary">위치와 속도 다시 측정</button><button id="onboarding-manual" class="link-button">속도 직접 입력</button></div>
     <div class="ob-actions">
