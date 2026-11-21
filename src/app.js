@@ -8,6 +8,7 @@ import {initMeetupUI} from './meetup-ui.js';
 import {createMapAPI} from './map-adapter.js';
 import {KAKAO_JAVASCRIPT_KEY} from './map-config.js';
 import {SHARING_SERVER_ORIGIN} from './firebase-config.js';
+import {createSheet} from './sheet.js';
 
 const mapAPI = createMapAPI({key:KAKAO_JAVASCRIPT_KEY,leaflet:L});
 const mapProvider = KAKAO_JAVASCRIPT_KEY.trim() ? 'Kakao' : 'OpenStreetMap';
@@ -113,40 +114,60 @@ $('recalibrate-button').addEventListener('click', () => {
   $('onboarding-title').textContent = '내 걸음 속도 측정하기';
   state.gpsIssue = ''; renderCalibration();refreshMaps();window.scrollTo?.({top:0,behavior:'smooth'});
 });
-// One page, three views that share the same map. The view only decides which header and panel show.
-// Each screen fits the viewport. Explanations and rarely used settings live in a sheet
-// that is opened on demand and closed whenever the map becomes the thing to look at.
-function setMore(open) { document.body?.classList.toggle('more-open', open); }
+// One page, three views that share the same map. The map fills the screen and a view is one
+// white sheet over it, resting at three heights: 0 summary only, 1 key numbers and main buttons,
+// 2 everything (explanations and rarely used settings). It is dragged, or moved by its tab.
+let currentView = 'main', sheetLevel = 0;
+// The destination that was just set. While it is kept here the map follows the sheet: whenever
+// the sheet's top moves (new level, or messages that make it taller) the pin is panned back into
+// view. Forgotten as soon as the user takes over the map or the sheet, or a route is fitted.
+let revealTarget = null;
+const sheet = createSheet({sheet:$('sheet'), scroll:$('sheet-scroll'), grip:$('sheet-grip'), board:$('sheet-board'), panel:$('journey-panel'),
+  detail:() => $(`detail-${currentView}`), root:document.documentElement, onLevel:applyLevel,
+  onLayout:() => revealPoint(), onDragStart:() => { revealTarget = null; }});
+// Any touch, click, wheel or key on the map is the user moving it: it must not jump afterwards.
+for (const type of ['pointerdown','touchstart','mousedown','wheel','keydown']) $('map').addEventListener(type, () => { revealTarget = null; }, {passive:true,capture:true});
+function applyLevel(level) {
+  sheetLevel = level;
+  document.body?.classList.toggle('sheet-open', level > 0);
+  document.body?.classList.toggle('sheet-full', level === 2);
+}
+function setLevel(level) { applyLevel(level); sheet.setLevel(level); }
+function setSheet(open) { setLevel(open ? 1 : 0); }
+// During the pace measurement "more" is a full-screen help page; on the map it is the full sheet.
+function setMore(open) {
+  if (document.body?.classList.contains('onboarding')) { document.body.classList.toggle('more-open', open); return; }
+  document.body?.classList.remove('more-open');
+  if (open) setLevel(2); else if (sheetLevel === 2) setLevel(1);
+}
 for (const name of ['main','bus','meet','ob']) {
-  $(`more-${name}`).addEventListener('click', () => setMore(true));
+  $(`more-${name}`).addEventListener('click', () => { setMore(true); if (name !== 'ob') sheet.reveal($(`detail-${name}`)); });
   $(`more-close-${name}`).addEventListener('click', () => setMore(false));
 }
-// The map fills the screen. A view is a bottom sheet over it: opened from its tab, closed by
-// tapping the tab again or the map, so the map is never permanently covered.
-let currentView = 'main', sheetOpen = false;
-function setSheet(open) {
-  sheetOpen = open; document.body?.classList.toggle('sheet-open', open);
+function showView(view, open = true) {
+  currentView = view; document.body?.setAttribute?.('data-view', view);
   for (const name of ['main','bus','meet']) {
-    if (open && name === currentView) $(`view-${name}`).setAttribute?.('aria-current','page');
+    if (name === view) $(`view-${name}`).setAttribute?.('aria-current','page');
     else $(`view-${name}`).removeAttribute?.('aria-current');
   }
-}
-function showView(view, open = true) {
-  setMore(false);
-  currentView = view; document.body?.setAttribute?.('data-view', view);
   setSheet(open);
 }
 for (const name of ['main','bus','meet']) $(`view-${name}`).addEventListener('click', () => {
   // Leaving a pace measurement through the tabs keeps the previously saved pace.
   if (document.body?.classList.contains('onboarding')) { if (state.tracking) stopTracking(); leaveOnboarding(); render(); }
-  showView(name, !(sheetOpen && currentView === name));
+  showView(name, !(sheetLevel > 0 && currentView === name));
 });
+$('view-main').setAttribute?.('aria-current','page');
+// Only present behind the full-height sheet, where a tap on the sliver of map means "back to the map".
 $('sheet-scrim').addEventListener('click', () => setSheet(false));
-// The collapsed strip always shows the walking ETA, so tapping it opens the route view.
 $('sheet-board').addEventListener('click', event => {
   if (event?.target?.id === 'clear-destination') return;
-  if (sheetOpen) setSheet(false); else showView('main');
+  setSheet(sheetLevel === 0);
 });
+$('sheet-grip').addEventListener('click', () => setLevel((sheetLevel + 1) % 3));
+$('chip-bus').addEventListener('click', () => showView('bus'));
+// The message strip is part of the sheet; tapping it puts it away.
+$('notice').addEventListener('click', () => notice());
 const state = {start:null, position:null, destination:null, route:null, routes:[], selectedRoute:0, lampResults:null, lampBusy:false, lampMessage:'등록 가로등 정보는 별도로 조회해요. 실제 밝기/점등 상태는 알 수 없어요.', tracking:false, watchId:null, watchEpoch:0,
   routeConsent:false, autoRoute:false,
   speedOrigin:'default', baseSpeed:4.3 / 3.6, mapEnabled:false, pickingStart:false, demo:false, demoProgress:0, demoSpeed:DEFAULT_SPEED,
@@ -157,7 +178,6 @@ let meetingUI = null, busPilotUI = null;
 let lastTick = Date.now();
 
 const map = mapAPI.map('map', {zoomControl:false, attributionControl:true}).setView([37.5665,126.9780],15);
-mapAPI.control.zoom({position:'bottomright'}).addTo(map);
 const tiles = mapAPI.tileLayer(SERVICES.tiles, {maxZoom:19, attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'});
 const pathLayer = mapAPI.layerGroup().addTo(map), markerLayer = mapAPI.layerGroup().addTo(map), stopLayer = mapAPI.layerGroup().addTo(map);
 const calibrationMap = mapAPI.map('onboarding-map-view',{zoomControl:false,attributionControl:true}).setView([37.5665,126.9780],15);
@@ -165,7 +185,7 @@ const calibrationLayer = mapAPI.layerGroup().addTo(calibrationMap);
 const pilotLayer = mapAPI.layerGroup().addTo(map);
 const calibrationTiles = mapAPI.tileLayer(SERVICES.tiles,{maxZoom:19,attribution:'© OpenStreetMap contributors'});
 function refreshMaps() {
-  const refresh = () => { map.invalidateSize?.(); calibrationMap.invalidateSize?.(); };
+  const refresh = () => { sheet.layout(); map.invalidateSize?.(); calibrationMap.invalidateSize?.(); };
   refresh();
   window.requestAnimationFrame?.(refresh);
 }
@@ -179,7 +199,37 @@ function showCalibrationLocation(point, accuracy) {
 }
 
 
-function notice(message = '') { if (calibration.active && message) {calibration.message = message; $('onboarding-feedback').textContent = message;} $('notice').textContent = message; $('notice').classList.toggle('hidden', !message); }
+// Messages live under the summary card. A collapsed sheet rises to half when one appears, the same
+// way as for a new destination: not under a finger, not in demo mode or the pace measurement.
+function raiseSheet() {
+  if (sheetLevel === 0 && !sheet.dragging && !state.demo && !document.body?.classList.contains('onboarding')) setLevel(1);
+}
+function notice(message = '') {
+  if (calibration.active && message) {calibration.message = message; $('onboarding-feedback').textContent = message;}
+  // Only a message that appears raises the sheet. One that is already showing (same or updated
+  // text, such as a changing GPS accuracy) does not pull a sheet back up that the user put away.
+  const appears = Boolean(message) && !$('notice').textContent;
+  $('notice').textContent = message; $('notice').classList.toggle('hidden', !message); sheet.layout(true);
+  if (appears) raiseSheet();
+}
+// Pans the map, without zooming, just far enough that the destination just set (revealTarget) is
+// neither under the sheet nor under the search box and chips. Does nothing when it can be seen.
+function revealPoint() {
+  // sheet.layout() also runs while this module is still loading, before the map exists.
+  if (!revealTarget || !state.mapEnabled) return;
+  const at = map.latLngToContainerPoint?.(revealTarget), sheetTop = $('sheet').offsetTop, width = $('map').offsetWidth;
+  if (!at || !Number.isFinite(at.x) || !Number.isFinite(at.y) || !Number.isFinite(sheetTop) || !width) return;
+  // The sheet's own top is the lower edge of the chip row; its visible part is sheet.height tall.
+  const margin = 40, visibleTop = sheetTop + $('sheet').offsetHeight - sheet.height;
+  // With the sheet (nearly) all the way up there is no map left to show the pin in.
+  if (visibleTop - sheetTop < 24) return;
+  // A band too low for both margins holds the pin in its middle.
+  const roomy = visibleTop - sheetTop >= 2 * margin, middle = (sheetTop + visibleTop) / 2;
+  const top = roomy ? sheetTop + margin : middle, bottom = roomy ? visibleTop - margin : middle;
+  const left = Math.min(margin, width / 2), right = Math.max(left, width - margin);
+  const dx = at.x < left ? at.x - left : at.x > right ? at.x - right : 0, dy = at.y < top ? at.y - top : at.y > bottom ? at.y - bottom : 0;
+  if (Math.abs(dx) >= 1 || Math.abs(dy) >= 1) map.panBy([dx,dy]);
+}
 function shortDistance(meters) { return meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${Math.round(meters)} m`; }
 function formatTime(timestamp) { return new Intl.DateTimeFormat('ko-KR', {hour:'numeric',minute:'2-digit'}).format(timestamp); }
 function coordinateLabel(point) { return `${point[0].toFixed(5)}, ${point[1].toFixed(5)}`; }
@@ -198,8 +248,12 @@ function draw() {
   if (state.destination) marker(state.destination.point,'destination',state.destination.name).addTo(markerLayer);
 }
 function fitMap() {
+  // A fitted route decides the view. Without one the pin still has to stay clear of the sheet.
+  if (state.route) revealTarget = null;
   const points = state.route?.points || [state.position,state.destination?.point].filter(Boolean);
-  if (points.length > 1) map.fitBounds(mapAPI.latLngBounds(points),{paddingTopLeft:[55,110],paddingBottomRight:[50,100],maxZoom:17});
+  // Keep the route clear of the search box and chips above and of the sheet below. The map
+  // itself already ends where the collapsed sheet begins.
+  if (points.length > 1) map.fitBounds(mapAPI.latLngBounds(points),{paddingTopLeft:[50,120],paddingBottomRight:[50,Math.max(40,sheet.height - sheet.peek + 56)],maxZoom:17});
   else if (points.length) map.setView(points[0],16);
 }
 function clearRequests() {
@@ -275,7 +329,9 @@ function setPickingStart(picking) {
 }
 function setDestination(point, name, source = '지도에서 선택한 지점') {
   // Search, stops and shared destinations must also leave start-picking mode.
-  setMore(false); setSheet(false);
+  // An open sheet stays open: only a tap on the map (or its tab) closes it.
+  revealTarget = null;
+  setMore(false);
   setPickingStart(false);
   meetingUI?.destinationChanged(point);
   clearRequests(); state.destination = {point,name,source}; state.route = null; state.busArrival = null;
@@ -287,11 +343,16 @@ function setDestination(point, name, source = '지도에서 선택한 지점') {
   notice(); draw(); render();
   // Present consent immediately, but send no coordinates until the user agrees.
   if (state.demo || document.body?.classList.contains('onboarding')) return;
+  // A collapsed sheet rises to show the new place's buttons, unless a finger is moving it.
+  // Keep the new pin in view above the sheet: now, and while the sheet still settles.
+  revealTarget = point;
+  raiseSheet(); revealPoint();
   if (state.position) void findRoute();
   // No start yet: locate the user and route as soon as the first accurate fix arrives.
   else { state.autoRoute = true; if (!state.tracking) startTracking(); }
 }
 $('clear-destination').addEventListener('click', () => {
+  revealTarget = null;
   meetingUI?.destinationChanged(null);
   if (state.demo) exitDemo();
   clearRequests(); setPickingStart(false); state.destination = null; state.route = null; state.busArrival = null; state.autoRoute = false;
@@ -321,7 +382,7 @@ $('set-destination').addEventListener('click', () => {
   setPickingStart(false);
   notice(state.mapEnabled ? '지도에서 원하는 곳을 누르거나 위 검색창에서 목적지를 찾아 주세요.' : '온라인 지도를 켜면 목적지를 지도에서 고를 수 있어요. 검색창에 좌표를 직접 입력해도 돼요.');
 });
-$('fit-map').addEventListener('click', fitMap);
+$('fit-map').addEventListener('click', () => { setSheet(false); fitMap(); });
 
 let searchComposing = false;
 $('search-input').addEventListener('compositionstart', () => { searchComposing = true; });
@@ -347,8 +408,13 @@ $('search-form').addEventListener('submit', async event => {
     if (epoch !== state.requestEpoch || controller.signal.aborted) return;
     $('search-results').replaceChildren();
     for (const result of results) {
-      const li = document.createElement('li'), button = document.createElement('button');
-      button.type = 'button'; button.textContent = result.address ? `${result.name} / ${result.address}` : result.name;
+      const li = document.createElement('li'), button = document.createElement('button'), name = document.createElement('strong');
+      // Place name in bold, the address on its own grey line. A result that is one long
+      // "name, street, district, …" string is split for display only: the destination keeps the full name.
+      const cut = result.address ? -1 : result.name.indexOf(', ');
+      const address = result.address || (cut > 0 ? result.name.slice(cut + 2) : '');
+      button.type = 'button'; name.textContent = cut > 0 ? result.name.slice(0,cut) : result.name; button.append(name);
+      if (address) { const line = document.createElement('small'); line.textContent = address; button.append(line); }
       button.addEventListener('click', () => { setDestination(result.point,result.name,result.source || 'Nominatim 검색'); map.setView(result.point,16); });
       li.append(button); $('search-results').append(li);
     }
@@ -358,6 +424,19 @@ $('search-form').addEventListener('submit', async event => {
   finally { if (controller === searchController) $('search-button').disabled = false; }
 });
 document.addEventListener('keydown', event => { if (event.key === 'Escape') $('search-results').classList.add('hidden'); });
+// The ✕ in the search box exists only while there is something to clear.
+function syncSearchClear() { $('search-clear').classList.toggle('hidden', !$('search-input').value); }
+$('search-input').addEventListener('input', syncSearchClear);
+$('search-clear').addEventListener('click', () => {
+  // A search still on its way must not open its results after the box was emptied.
+  const searching = $('search-button').disabled;
+  searchController?.abort();
+  if (searching) { $('search-button').disabled = false; notice(); }
+  $('search-input').value = ''; syncSearchClear();
+  $('search-results').classList.add('hidden');
+  $('search-input').focus?.();
+});
+syncSearchClear();
 
 async function requestWakeLock(epoch) {
   try {
@@ -582,7 +661,7 @@ async function findStops() {
   finally { if (controller === stopController) { state.stopBusy = false; render(); } }
 }
 $('stops-button').addEventListener('click', findStops);
-$('map-stops').addEventListener('click', () => { showView('bus'); setMore(true); return findStops(); });
+$('map-stops').addEventListener('click', () => { showView('bus'); setMore(true); sheet.reveal($('stops-button')); return findStops(); });
 
 $('bus-form').addEventListener('submit', event => {
   event.preventDefault();
@@ -605,7 +684,7 @@ function setManualPace(kmh) {
   return true;
 }
 $('base-speed').addEventListener('input', () => setManualPace(Number($('base-speed').value)));
-$('edit-pace').addEventListener('click', () => { setMore(true); $('speed-settings').open = true; $('speed-settings').scrollIntoView?.({behavior:'smooth',block:'start'}); });
+$('edit-pace').addEventListener('click', () => { $('speed-settings').open = true; setMore(true); sheet.reveal($('speed-settings')); });
 $('onboarding-manual').addEventListener('click', () => { setMore(true); $('manual-pace-details').open = true; $('manual-pace-details').scrollIntoView?.({behavior:'smooth',block:'center'}); });
 $('manual-pace-form').addEventListener('submit', event => {
   event.preventDefault();
@@ -664,6 +743,7 @@ $('lamp-button').addEventListener('click',async()=>{
 function render() {
   renderCalibration(); renderComparison(); busPilotUI?.render();
   const now = Date.now(), e = estimate(now);
+  if (state.gpsIssue && $('gps-recovery').classList.contains('hidden')) { $('gps-recovery').classList.remove('hidden'); raiseSheet(); }
   $('gps-recovery').classList.toggle('hidden', !state.gpsIssue);
   $('gps-problem').textContent = state.gpsIssue;
   $('gps-use-saved').disabled = !state.position;
@@ -671,7 +751,7 @@ function render() {
   $('route-button').textContent = state.routeBusy ? '경로 찾는 중…' : state.route ? '도보 경로 다시 찾기' : '경로와 도착 시간 계산하기';
   $('stops-button').disabled = state.stopBusy;
   $('map-stops').disabled = state.stopBusy;
-  $('map-stops').textContent = state.stopBusy ? '조회 중…' : '정류장';
+  $('map-stops').textContent = state.stopBusy ? '조회 중…' : '주변 정류장';
   $('stops-button').textContent = state.stopBusy ? '정류장 찾는 중…' : '주변 700m 정류장 찾기';
   const speedValid = Number.isFinite(e.speed) && !e.stale && !e.unreliable;
   $('walking-speed').textContent = speedValid ? `${(e.speed * 3.6).toFixed(1)} km/h` : '--';
@@ -681,6 +761,7 @@ function render() {
   $('tracking-tag').classList.toggle('active',state.tracking && !e.stale);
   $('eta-label').textContent = state.demo ? '가상 경로 예상 도착까지' : '예상 도착까지';
   $('remaining-distance').textContent = e.progress ? shortDistance(e.progress.remaining) : '--';
+  $('remaining-distance').classList.toggle('empty', !e.progress);
   $('eta-minutes').textContent = e.arrived ? '도착' : e.seconds !== null ? String(Math.max(1,Math.ceil(e.seconds / 60))) : '--';
   // Without an ETA the header shrinks instead of showing a huge placeholder.
   document.body?.classList.toggle('no-eta', !e.arrived && e.seconds === null);
@@ -690,7 +771,7 @@ function render() {
   let note = '실제 도보 경로를 찾기 전에는 도착 시간을 표시하지 않아요.';
   let arrival = '목적지를 정하면 여기에 알려드릴게요';
   if (state.destination && !state.position) arrival = '출발지를 정하거나 위치 측정을 시작해 주세요';
-  else if (state.destination && !state.route) { arrival = state.routeBusy ? '도보 경로를 찾고 있어요…' : '위의 경로 계산 버튼을 눌러 주세요'; note = '실제 도보 경로가 없어 거리와 시간을 계산하지 않아요. 지도 점선은 두 지점을 잇는 직선이에요.'; }
+  else if (state.destination && !state.route) { arrival = state.routeBusy ? '도보 경로를 찾고 있어요…' : '경로 계산 버튼을 눌러 주세요'; note = '실제 도보 경로가 없어 거리와 시간을 계산하지 않아요. 지도 점선은 두 지점을 잇는 직선이에요.'; }
   if (state.route) {
     note = state.demo ? '가상 위치, 속도, 경로로 동작을 확인하는 체험이에요. 실제 길 안내가 아니에요.' : `FOSSGIS 도보 경로 / 신호 대기와 경사는 제외${state.route.endpointGap > 0 ? ` / 보행로 끝점과 선택 위치 차이 최대 ${Math.round(state.route.endpointGap)}m. 연결 거리는 시간에 더하지 않아요` : ''}`;
     if (e.endpointUncertain) arrival = '목적지와 보행로 연결을 확인하지 못했어요. 지도에서 가까운 보행로 지점을 선택해 주세요';
@@ -732,6 +813,8 @@ function render() {
     result.classList.toggle('warn',status.kind !== 'possible');
   }
   meetingUI?.refresh();
+  // The summary and the panel change height with their text.
+  sheet.layout(true);
 }
 
 const DEMO_POINTS = [[37.5665,126.9780],[37.5665,126.9792],[37.5672,126.9792],[37.5684,126.9794],[37.5685,126.9810],[37.5692,126.9812],[37.5700,126.9814],[37.5703,126.9827]];
@@ -757,6 +840,7 @@ function startDemo() {
   stopLayer.clearLayers(); $('stop-results').classList.add('hidden'); notice(); draw(); fitMap(); render();
 }
 function exitDemo() {
+  revealTarget = null;
   state.demo = false; state.position = null; state.start = null; state.route = null; state.destination = null; state.busArrival = null;
   $('destination-name').textContent = '지도에서 목적지를 선택해 주세요';
   $('set-start').classList.remove('hidden');
@@ -805,7 +889,7 @@ initLoginGate({session:accountSession,
 // An opened invitation belongs to the meeting view.
 if (window.location?.hash?.includes('meeting=1')) showView('meet');
 
-for (const id of ['fit-friends','set-start','set-destination','fit-map']) $(id).addEventListener('click', () => { setMore(false); setSheet(false); });
+for (const id of ['fit-friends','set-start','set-destination']) $(id).addEventListener('click', () => { setMore(false); setSheet(false); });
 busPilotUI = initBusPilot({session:accountSession,
   getContext:()=>({...state,estimate:estimate(Date.now())}),
   showStop:async stop=>{
