@@ -26,7 +26,7 @@
     <div class="hero hero-ob">
       <h1 id="onboarding-title">내 걸음으로<br>몇 분?</h1>
       <div class="ob-readout">
-        <span class="hero-label" id="onboarding-speed-label">나의 보행 속도</span>
+        <div class="hero-label"><span id="onboarding-speed-label">나의 보행 속도</span><span class="live-tag" id="onboarding-status" role="status">측정 준비</span></div>
         <div class="hero-number"><strong id="onboarding-speed">—</strong><small class="unit">km/h</small></div>
         <span id="onboarding-pace">아직 측정하지 않았어요</span>
       </div>
@@ -66,14 +66,12 @@
   </section>
 
   <section id="onboarding-card" class="onboarding-card" aria-labelledby="onboarding-title">
+    <div id="onboarding-map-view" class="ob-mini-map hidden" aria-label="측정한 내 위치 지도"></div>
     <div class="rows ob-meter">
-      <div class="row"><span>상태</span><strong id="onboarding-status" role="status">측정 준비</strong></div>
       <div class="row"><span>측정 시간</span><strong id="onboarding-time">00:00</strong></div>
       <div class="row"><span>위치 정확도</span><strong id="onboarding-accuracy">—</strong></div>
       <div class="row row-progress"><label id="onboarding-progress-label" for="onboarding-progress">사용 가능한 보행 표본 0 / 30초</label><progress id="onboarding-progress" max="30" value="0"></progress></div>
     </div>
-    <p class="note-box ob-keep-on">화면을 켜 두세요. 화면을 잠그거나 다른 앱으로 이동하면 측정이 멈춰요.</p>
-    <div id="onboarding-map-view" class="ob-mini-map hidden" aria-label="측정한 내 위치 지도"></div>
     <div id="onboarding-recovery" class="gps-recovery hidden" role="status"><p id="onboarding-problem"></p><button id="onboarding-retry" class="secondary">위치와 속도 다시 측정</button><button id="onboarding-manual" class="link-button">속도 직접 입력</button></div>
     <div class="ob-actions">
       <button id="onboarding-map" class="secondary wide">지도 다시 켜기</button>

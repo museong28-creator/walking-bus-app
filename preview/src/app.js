@@ -80,6 +80,8 @@ function beginCalibration() {
   Object.assign(calibration,{active:true,done:false,started:Date.now(),readyAtStop:false,first:0,values:[],lastSample:0,accuracy:null,message:'내 위치를 찾고 있어요. 브라우저의 위치 권한을 허용해 주세요.'});
   $('onboarding-map-view').classList.toggle('hidden', !state.mapEnabled);
   startTracking(); renderCalibration();
+  // The location map only appears while measuring, so it needs its size recalculated now.
+  refreshMaps();
 }
 $('onboarding-start').addEventListener('click', beginCalibration);
 $('onboarding-retry').addEventListener('click', beginCalibration);

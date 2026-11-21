@@ -152,6 +152,10 @@ details p { font-size: 14px; color: var(--sub); }
 .ob-meter .row strong { font-size: 17px; }
 .ob-meter .row-progress { padding: 8px 0; gap: 6px; }
 .onboarding-card .note-box { padding: 8px 12px; font-size: 13px; }
+/* The location map shows only while a measurement is running. */
+body:not(.measuring) .ob-mini-map { display: none; }
+.onboarding-card { padding-top: 8px; }
+.hero-ob .hero-number:has(.empty) { visibility: hidden; height: 28px; }
 .ob-mini-map { flex: 1; min-height: 110px; border: var(--rule); border-radius: 10px; overflow: hidden; background: var(--map); }
 .ob-actions { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
 .ob-actions .link-button { min-height: 40px; }
