@@ -275,7 +275,8 @@ function setPickingStart(picking) {
 }
 function setDestination(point, name, source = '지도에서 선택한 지점') {
   // Search, stops and shared destinations must also leave start-picking mode.
-  setMore(false); setSheet(false);
+  // The sheet stays as it is: only a tap on the map (or its tab) closes it.
+  setMore(false);
   setPickingStart(false);
   meetingUI?.destinationChanged(point);
   clearRequests(); state.destination = {point,name,source}; state.route = null; state.busArrival = null;
