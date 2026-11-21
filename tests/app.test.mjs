@@ -12,7 +12,7 @@ import {SERVICES} from '../src/services.js';
 // This tests event/state integration, not CSS layout, Leaflet rendering, or Safari APIs.
 const appSource = (await readFile(new URL('../src/app.js', import.meta.url), 'utf8'))
   .replace(/^import .*;\r?\n/gm, '')
-  + '\n;globalThis.appTest = {state, tracker, startTracking, stopTracking, setDestination, estimate, render, startDemo, exitDemo};';
+  + '\n;globalThis.appTest = {state, tracker, startTracking, stopTracking, setDestination, estimate, render, startDemo, exitDemo, askConsent};';
 
 class FakeTarget {
   constructor() { this.listeners = new Map(); }
@@ -93,7 +93,7 @@ function harness(options = {}) {
     getRouteLamps: options.getRouteLamps || (async () => {throw new Error('Unexpected network request');}),
     searchPlaces: async () => {throw new Error('Unexpected network request');},
     getNearbyStops: options.getNearbyStops || (async () => {throw new Error('Unexpected network request');}),
-    initAccountUI: () => ({}), initBusPilot: () => ({render(){}}),
+    initAccountUI: () => ({}), initLoginGate: () => {}, initBusPilot: () => ({render(){}}),
     initMeetupUI: () => ({refresh() {},pauseSharing() {},destinationChanged() {},useBusTime(timestamp) {busTargets.push(timestamp);}}),
   });
   vm.runInContext(appSource, context, {filename: 'src/app.js'});
@@ -663,4 +663,31 @@ test('one-shot current location rejects poor fixes, times out, and does not pret
  assert.deepEqual([...h.app.state.position],[1,1]);
  await h.element('locate-me').emit('click');h.locations[2].success({timestamp:h.now,coords:{latitude:37.56,longitude:126.97,accuracy:5}});
  assert.deepEqual([...h.app.state.position],[37.56,126.97]);assert.equal(h.app.state.tracking,false);
+});
+
+test('a consent requested while another is open waits its turn instead of being silently refused',async()=>{
+  const h=harness();await h.element('onboarding-skip').emit('click');
+  h.app.state.position=[37.56,126.97];h.app.setDestination([37.57,126.98],'Destination');
+  // The routing consent is open. A second feature (for example location sharing) asks now.
+  assert.match(h.element('consent-title').textContent,/도보 경로/);
+  let answer='pending';h.app.askConsent('내 위치를 이 약속방에 공유','share text','share note').then(value=>{answer=value;});
+  await flushAsync();
+  assert.equal(answer,'pending');assert.match(h.element('consent-title').textContent,/도보 경로/);
+  await h.element('consent-cancel').emit('click');await flushAsync();
+  // The first answer does not leak into the second question, which is now shown.
+  assert.equal(answer,'pending');assert.equal(h.element('consent-dialog').open,true);
+  assert.equal(h.element('consent-title').textContent,'내 위치를 이 약속방에 공유');
+  assert.equal(h.element('consent-copy').textContent,'share text');assert.equal(h.element('consent-footnote').textContent,'share note');
+  await h.element('consent-allow').emit('click');await flushAsync();
+  assert.equal(answer,true);assert.equal(h.element('consent-dialog').open,false);
+});
+test('changing the destination refuses every waiting consent and leaves only the new one open',async()=>{
+  const h=harness();await h.element('onboarding-skip').emit('click');
+  h.app.state.position=[37.56,126.97];h.app.setDestination([37.57,126.98],'First');
+  const answers=[];h.app.askConsent('queued','text').then(value=>answers.push(value));
+  h.app.setDestination([37.58,126.99],'Second');await flushAsync();
+  assert.deepEqual(answers,[false]);assert.equal(h.app.state.route,null);
+  assert.equal(h.element('consent-dialog').open,true);assert.match(h.element('consent-title').textContent,/도보 경로/);
+  await h.element('consent-cancel').emit('click');await flushAsync();
+  assert.equal(h.element('consent-dialog').open,false);
 });

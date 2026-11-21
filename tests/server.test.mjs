@@ -259,6 +259,27 @@ test('bounded request and room creation rates and capacity', async t => {
   assert.equal((await small.call('snapshot')).status, 429);
 });
 
+test('behind a proxy each visitor gets separate request and room-creation limits', async t => {
+  const visitor = ip => ({ headers: { 'X-Forwarded-For': ip, 'X-Forwarded-Proto': 'https' } });
+  for (const options of [{ trustedProxyHops: 1 }, { trustedProxyIps: ['127.0.0.1'] }]) {
+    const f = await fixture(t, { ...options, rateLimits: { createsPerHour: 1, requestsPerMinute: 2 } });
+    const create = ip => f.call('create', { displayName: 'Host', destination }, undefined, visitor(ip));
+    assert.equal((await create('198.51.100.1')).status, 201);
+    assert.equal((await create('198.51.100.1')).status, 429);
+    // Another visitor through the same proxy socket is not blocked by the first one.
+    assert.equal((await create('198.51.100.2')).status, 201);
+    // A forged left-most entry does not create a fresh bucket for the first visitor.
+    assert.equal((await create('9.9.9.9, 198.51.100.1')).status, 429);
+  }
+  // Without a declared proxy the header is ignored and everyone shares the socket bucket.
+  const direct = await fixture(t, { rateLimits: { createsPerHour: 1 } });
+  assert.equal((await direct.call('create', { displayName: 'Host', destination }, undefined, { headers: { 'X-Forwarded-For': '198.51.100.1' } })).status, 201);
+  assert.equal((await direct.call('create', { displayName: 'Host', destination }, undefined, { headers: { 'X-Forwarded-For': '198.51.100.2' } })).status, 429);
+  assert.throws(() => createMeetingServer({ trustedProxyHops: -1 }));
+  assert.equal(configFromEnv({ TRUSTED_PROXY_HOPS: '2' }).trustedProxyHops, 2);
+  assert.throws(() => configFromEnv({ TRUSTED_PROXY_HOPS: 'all' }));
+});
+
 test('configuration rejects wildcard origins, unsafe HTTP origins and excessive retention', () => {
   assert.throws(() => createMeetingServer({ roomTtlMs: MAX_ROOM_TTL_MS + 1 }));
   assert.throws(() => createMeetingServer({ allowedOrigins: ['*'] }));

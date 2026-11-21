@@ -1,0 +1,48 @@
+# Publishes the static app to GitHub Pages (gh-pages branch).
+#   main                          -> the live site at the root (preview/ is kept)
+#   claude/peaceful-planck-3zuzy0 -> /preview/ only, for testing on a phone before release
+name: Deploy site
+
+on:
+  push:
+    branches: [main, 'claude/peaceful-planck-3zuzy0']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-site
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - name: Publish only the privacy note from docs, not internal handoff notes
+        run: find dist/docs -type f ! -name 'PRIVACY.md' -delete
+      - name: Publish to gh-pages
+        run: |
+          git fetch origin gh-pages
+          git worktree add ../pages origin/gh-pages
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            rsync -a --delete --exclude .git --exclude .nojekyll --exclude preview dist/ ../pages/
+          else
+            mkdir -p ../pages/preview
+            rsync -a --delete dist/ ../pages/preview/
+          fi
+          cd ../pages
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "Site already up to date"; exit 0; fi
+          git commit -m "Deploy ${GITHUB_REF_NAME} ${GITHUB_SHA::7}"
+          git push origin HEAD:gh-pages

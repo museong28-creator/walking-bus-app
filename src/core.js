@@ -65,6 +65,8 @@ export class SpeedTracker {
     this.samples = [];
     this.lastFix = null;
     this.anchor = null;
+    this.idle = false;
+    this.jumpCandidate = null;
     this.lastMovement = null;
     this.current = null;
     this.learned = null;
@@ -79,26 +81,41 @@ export class SpeedTracker {
     const point = [latitude, longitude];
     if (this.lastFix) {
       const dt = (timestamp - this.lastFix.timestamp) / 1000;
-      if (dt > 30) { this.samples = []; this.anchor = null; this.current = null; }
+      if (dt > 30) { this.samples = []; this.anchor = null; this.idle = false; this.current = null; }
       else if (dt > 0 && distance(this.lastFix.point, point) > MAX_WALK_SPEED * dt + accuracy + this.lastFix.accuracy) {
-        this.status = 'jump'; return false;
+        // One outlier is ignored. But when the accepted fix was itself the outlier, every later
+        // real fix looks like a jump. Three consecutive rejected fixes that agree with each other
+        // are the real position: restart there instead of rejecting until tracking times out.
+        const candidate = this.jumpCandidate;
+        const candidateDt = candidate ? (timestamp - candidate.timestamp) / 1000 : 0;
+        const agrees = candidate && candidateDt <= 30 && distance(candidate.point, point) <= MAX_WALK_SPEED * candidateDt + accuracy + candidate.accuracy;
+        this.jumpCandidate = {point, accuracy, timestamp, count: agrees ? candidate.count + 1 : 1};
+        if (this.jumpCandidate.count < 3) { this.status = 'jump'; return false; }
+        // The speed measured around the discarded position is not trustworthy either.
+        this.samples = []; this.anchor = null; this.idle = false; this.current = null; this.status = 'measuring';
       }
     }
+    this.jumpCandidate = null;
     this.lastFix = {point, accuracy, timestamp};
     if (!this.anchor) this.anchor = {point, accuracy, timestamp};
     let measured = null;
     if (typeof speed === 'number' && Number.isFinite(speed) && speed >= 0) {
       if (speed > MAX_WALK_SPEED) { this.current = null; this.status = 'too-fast'; return true; }
-      measured = speed;
+      measured = speed; this.idle = false;
     } else {
       const elapsed = (timestamp - this.anchor.timestamp) / 1000;
       const traveled = distance(this.anchor.point, point);
       const noise = Math.max(6, (accuracy + this.anchor.accuracy) * 0.35);
-      if (elapsed >= 8 && traveled >= noise) {
+      if (this.idle && traveled >= noise) {
+        // Movement resumed after standing still. The departure time is unknown, so dividing by the
+        // whole stop would report a far too slow pace: restart the measurement from here instead.
+        this.idle = false;
+        this.anchor = {point, accuracy, timestamp};
+      } else if (elapsed >= 8 && traveled >= noise) {
         measured = traveled / elapsed;
         this.anchor = {point, accuracy, timestamp};
         if (measured > MAX_WALK_SPEED) { this.current = null; this.status = 'too-fast'; return true; }
-      } else if (elapsed >= 15 && traveled < noise) measured = 0;
+      } else if (elapsed >= 15 && traveled < noise) { measured = 0; this.idle = true; }
     }
     if (measured !== null) {
       this.samples.push({value: measured, timestamp});

@@ -1,5 +1,6 @@
 import {createAccountSession} from './firebase-session.js';
-import {createAuthenticatedNavigationClient} from './navigation-client.js?v=pace-22';
+import {createAuthenticatedNavigationClient} from './navigation-client.js';
+import {loginErrorMessage} from './login-gate.js';
 export function initAccountUI({document:doc=document,session=createAccountSession(),clipboard=globalThis.navigator?.clipboard,navigation}={}){
   const $=id=>doc.getElementById(id),dialog=$('account-dialog');let busy=false,checking=false;
   navigation??=createAuthenticatedNavigationClient(session);
@@ -15,15 +16,9 @@ export function initAccountUI({document:doc=document,session=createAccountSessio
     $('account-uid').value=user?.uid||'';
     for(const id of ['account-prepare','account-login','account-logout','account-copy','account-check'])$(id).disabled=busy;
   };
-  const errors=error=>{
-    if(['auth/popup-closed-by-user','auth/cancelled-popup-request'].includes(error?.code))return '로그인을 취소했어요. 다시 시도할 수 있어요.';
-    if(error?.code==='auth/popup-blocked')return '팝업이 차단됐어요. Safari 팝업 차단 설정을 확인한 뒤 다시 눌러 주세요.';
-    if(error?.code==='auth/unauthorized-domain')return '이 사이트의 로그인 도메인 설정을 확인해야 해요.';
-    return '로그인 연결을 완료하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.';
-  };
   const perform=async action=>{
     if(busy)return;busy=true;render();
-    try{await action();}catch(error){status(errors(error));}finally{busy=false;render();}
+    try{await action();}catch(error){status(loginErrorMessage(error));}finally{busy=false;render();}
   };
   session.subscribe(user=>{render();if(user)status('Google 로그인 완료. 대구대(정문1) 894번은 버스 시간 비교에서 조회하세요.');});
   $('account-button').addEventListener('click',()=>{if(!dialog.open)dialog.showModal();});

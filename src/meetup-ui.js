@@ -125,10 +125,13 @@ export function initMeetupUI({map,L = globalThis.L,askConsent,notice,formatTime,
     if (!client?.session || !room || shareBusy) return;
     const context = getContext();
     if (context.demo) { notice('가상 위치는 친구에게 보내지 않아요. 체험을 종료해 주세요.'); return; }
-    if (!context.destination || distance(context.destination.point,room.destination.point) > 2) { selectDestination(room.destination.point,room.destination.name); }
     const current = client;
     if (!(await askConsent('내 위치를 이 약속방에 공유',`정확한 GPS 위치, 측정 시각·오차, 보행 속도와 이 약속 장소까지의 예상 시간을 ${client.serverUrl} 서버와 이 방의 모든 참가자에게 약 5초 간격으로 보내요. 초대 링크를 받은 사람이 추가로 참여할 수 있어요. 화면을 켜 둔 동안만 전송하며 언제든 중지할 수 있어요.`, '마지막 위치만 임시 보관해요. 중지 시 삭제를 요청하고, 통신 실패 시 마지막 위치는 최대 90초 후 숨김·삭제돼요. 이미 본 정보나 캡처는 회수할 수 없어요.'))) return;
-    if (current !== client || !current.session || document.visibilityState !== 'visible') return;
+    if (current !== client || !current.session || !room || document.visibilityState !== 'visible') return;
+    // Only after the sharing consent: choosing the destination opens the separate routing consent,
+    // which must not appear before (or instead of) the question the user actually asked for.
+    const latest = getContext();
+    if (!latest.destination || distance(latest.destination.point,room.destination.point) > 2) selectDestination(room.destination.point,room.destination.name);
     shareBusy = true; syncControls();
     try {
       if (await current.startSharing()) {

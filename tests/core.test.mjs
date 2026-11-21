@@ -235,3 +235,62 @@ test('invalid bus comparison inputs cannot produce a confident catch verdict', (
     assert.deepEqual(catchStatus(...args), {kind: 'unknown'});
   }
 });
+
+test('an accepted outlier fix cannot lock out the real position: consistent later fixes take over', () => {
+  const tracker = new SpeedTracker();
+  // The very first accepted fix is 300 m off. The walker is really near 0 m.
+  tracker.ingest(fix(0, 300, 1.2));
+  assert.equal(tracker.ingest(fix(1, 0, 1.2)), false);
+  assert.equal(tracker.status, 'jump');
+  assert.equal(tracker.ingest(fix(2, 1.2, 1.2)), false);
+  // The third mutually consistent fix proves the old location was the outlier.
+  assert.equal(tracker.ingest(fix(3, 2.4, 1.2)), true);
+  assert.equal(tracker.lastFix.timestamp, fix(3).timestamp);
+  assert.equal(tracker.status, 'measured');
+  close(tracker.current, 1.2);
+  // Normal tracking continues from the recovered position.
+  assert.equal(tracker.ingest(fix(4, 3.6, 1.2)), true);
+  assert.equal(tracker.jumpCandidate, null);
+});
+
+test('scattered outliers that disagree with each other never replace the accepted position', () => {
+  const tracker = new SpeedTracker();
+  tracker.ingest(fix(0, 0, 1.2));
+  for (const [second, meters] of [[1, 300], [2, -300], [3, 600], [4, -600], [5, 900]]) {
+    assert.equal(tracker.ingest(fix(second, meters, 1.2)), false);
+    assert.equal(tracker.status, 'jump');
+  }
+  assert.equal(tracker.lastFix.timestamp, fix(0).timestamp);
+  assert.equal(tracker.ingest(fix(6, 7.2, 1.2)), true);
+  close(tracker.current, 1.2);
+});
+
+test('recovering from an outlier discards the speed samples measured around it', () => {
+  const tracker = new SpeedTracker();
+  tracker.ingest(fix(0, 300));
+  tracker.ingest(fix(10, 312));
+  close(tracker.current, 1.2);
+  tracker.ingest(fix(11, 0)); tracker.ingest(fix(12, 1)); tracker.ingest(fix(13, 2));
+  assert.equal(tracker.current, null);
+  assert.equal(tracker.status, 'measuring');
+  assert.equal(tracker.samples.length, 0);
+  tracker.ingest(fix(23, 14));
+  close(tracker.current, 1.2);
+});
+
+test('resuming after standing still does not divide the new movement by the whole stop', () => {
+  const tracker = new SpeedTracker();
+  tracker.ingest(fix(0));
+  // Two minutes standing at a crossing.
+  for (let second = 5; second <= 120; second += 5) tracker.ingest(fix(second, 1));
+  assert.equal(tracker.current, 0);
+  assert.equal(tracker.status, 'stopped');
+  // Walking again at 1.2 m/s.
+  for (let second = 125; second <= 150; second += 5) tracker.ingest(fix(second, 1 + (second - 120) * 1.2));
+  assert.ok(tracker.samples.every(sample => sample.value === 0 || sample.value > 1.1), JSON.stringify(tracker.samples));
+  assert.equal(tracker.samples.at(-1).value > 1.1, true);
+  close(tracker.learned ?? 0, tracker.current);
+  for (let second = 155; second <= 180; second += 5) tracker.ingest(fix(second, 1 + (second - 120) * 1.2));
+  assert.equal(tracker.status, 'measured');
+  close(tracker.current, 1.2);
+});

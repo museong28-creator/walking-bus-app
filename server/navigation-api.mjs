@@ -3,6 +3,7 @@ import http from 'node:http';
 import {loadFirebaseSecurity} from './firebase-security.mjs';
 import {fileURLToPath} from 'node:url';
 import {resolve} from 'node:path';
+import {clientIp, proxyHops} from './client-ip.mjs';
 import {isCoordinate, distance} from '../src/core.js';
 
 export class NavigationError extends Error {
@@ -148,7 +149,8 @@ export function createNavigationService({kakaoKey='',tagoKey='',fetchImpl=fetch,
   }};
 }
 
-export function createNavigationServer({service=createNavigationService(),allowedOrigins=['http://localhost:3000','http://127.0.0.1:3000'],authorize}={}){
+export function createNavigationServer({service=createNavigationService(),allowedOrigins=['http://localhost:3000','http://127.0.0.1:3000'],authorize,trustedProxyHops=0}={}){
+  const hops=proxyHops(trustedProxyHops);
   const origins=new Set(allowedOrigins);
   if(!origins.size||origins.has('*')||[...origins].some(x=>{try{return new URL(x).origin!==x;}catch{return true;}}))throw new Error('Explicit origins required');
   const slots=new Map();
@@ -163,7 +165,7 @@ export function createNavigationServer({service=createNavigationService(),allowe
       if(req.method!=='POST')fail(405,'METHOD_NOT_ALLOWED','POST 요청만 지원해요.');
       if(!/^application\/json(?:;|$)/i.test(req.headers['content-type']||''))fail(415,'JSON_REQUIRED','JSON 요청이 필요해요.');
       if(!/^\/v1\/(walk|stops|arrivals|cities|session)$/.test(req.url))fail(404,'NOT_FOUND','지원하지 않는 요청이에요.');
-      const now=Date.now(),ip=req.socket.remoteAddress;
+      const now=Date.now(),ip=clientIp(req,hops);
       for(const [key,slot] of slots)if(now-slot.start>60000)slots.delete(key);
       const slot=slots.get(ip)||{start:now,count:0};
       if(slot.count>=20||slots.size>=1000&&!slots.has(ip))fail(429,'RATE_LIMIT','잠시 후 다시 시도해 주세요.');
@@ -184,7 +186,7 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   const origins=(process.env.NAV_ALLOWED_ORIGINS||'http://localhost:3000,http://127.0.0.1:3000').split(',').map(x=>x.trim());
   const security=await loadFirebaseSecurity();
   const service=createNavigationService({reserveQuota:security?.reserveQuota,kakaoKey:process.env.KAKAO_REST_API_KEY,tagoKey:process.env.TAGO_SERVICE_KEY,maxDailyCalls:Number(process.env.NAV_MAX_DAILY_CALLS||100)});
-  const server=createNavigationServer({service,allowedOrigins:origins,authorize:security?.authorize});
+  const server=createNavigationServer({service,allowedOrigins:origins,authorize:security?.authorize,trustedProxyHops:proxyHops(process.env.NAV_TRUSTED_PROXY_HOPS,'NAV_TRUSTED_PROXY_HOPS')});
   server.requestTimeout=15000;server.headersTimeout=10000;
   server.listen(Number(process.env.PORT||8788),process.env.NAV_HOST||'127.0.0.1',()=>console.log('Navigation API listening. No request bodies or upstream URLs are logged.'));
 }

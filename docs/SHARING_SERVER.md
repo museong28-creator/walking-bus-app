@@ -199,6 +199,7 @@ node --test tests/server.test.mjs
 | `PORT` | `8787` | 포트, 1–65535 |
 | `ALLOWED_ORIGINS` | 위의 localhost 두 Origin | 쉼표 구분 정확한 Origin. 와일드카드/경로/끝 슬래시 금지 |
 | `TRUSTED_PROXY_IPS` | 비어 있음 | HTTPS 종료 프록시의 정확한 IP 주소 목록. CIDR/와일드카드 불가 |
+| `TRUSTED_PROXY_HOPS` | `0` | 서버 앞에 있는 신뢰 프록시 개수(0~5). Render처럼 프록시 IP가 고정되지 않은 호스팅에서 설정. `X-Forwarded-For`의 오른쪽에서 이 개수만큼 떨어진 주소를 방문자 IP로 보고 방문자별로 요청 제한을 적용. 0이면 헤더를 무시하고 소켓 주소를 사용. 프록시를 거치지 않는 직접 접속이 가능한 서버에서는 설정하지 말 것 |
 | `ROOM_TTL_MS` | `21600000` | 방 수명. 1000–86400000ms |
 | `MAX_ROOMS` | `1000` | 프로세스당 방 한도. 1–5000 |
 
