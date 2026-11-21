@@ -67,14 +67,14 @@ test('every element id the scripts look up exists exactly once in the page', asy
   for (const id of ['view-main', 'view-bus', 'view-meet', 'recalibrate-button']) assert.ok(declared.includes(id), id);
 });
 
-test('the menu keeps a spoken name for every icon and the map controls keep their accessible names', async () => {
+test('the menu shows a name under every icon and the map controls keep their accessible names', async () => {
   const html = await read('index.html'), css = await read('styles.css');
   for (const [id, label] of [['view-main', '길찾기'], ['view-bus', '버스'], ['view-meet', '약속'], ['recalibrate-button', '내 속도'], ['account-button', '계정']]) {
     assert.match(html, new RegExp(`<button id="${id}">${label}</button>`), id);
   }
-  // The icons have full-size hit targets and their button text remains accessible.
+  // The labels are real text now: nothing may shrink them to nothing again.
   const tab = css.match(/^\.tabbar button \{([^}]*)\}/m)[1];
-  assert.match(tab, /font-size: 0/); assert.match(tab, /height: 56px/);
+  assert.match(tab, /font-size: 11px/); assert.doesNotMatch(tab, /transparent/); assert.match(tab, /height: 56px/);
   assert.match(css, /\.tabbar \{[^}]*env\(safe-area-inset-bottom\)/);
   assert.match(html, /<button type="button" id="search-clear" class="search-clear hidden" aria-label="검색어 지우기"/);
   assert.match(html, /<button id="locate-me"[^>]*aria-label="현재 위치로 지도 이동"/);
