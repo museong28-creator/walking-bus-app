@@ -82,44 +82,77 @@
         <form id="search-form" class="search-bar" role="search">
           <label class="sr-only" for="search-input">목적지 이름 또는 위도, 경도</label>
           <input id="search-input" name="place" type="text" inputmode="text" lang="ko" enterkeyhint="search" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="어디로 걸어가세요? (예: 대구대)" maxlength="180" autocomplete="off">
-          <button type="submit" id="search-button">검색</button>
+          <button type="button" id="search-clear" class="search-clear hidden" aria-label="검색어 지우기" title="검색어 지우기">지우기</button>
+          <button type="submit" id="search-button" class="search-submit">검색</button>
         </form>
+        <div class="chips" role="group" aria-label="빠른 버튼">
+          <button id="map-stops" class="chip chip-stops" type="button" title="주변 정류장 찾기 / 실시간 버스 미연결">주변 정류장</button>
+          <button id="chip-bus" class="chip chip-bus" type="button">대구대 894번</button>
+          <button id="set-start" class="chip chip-start" type="button" aria-pressed="false" title="지도를 눌러 출발지 지정">출발지 지정</button>
+          <button id="fit-map" class="chip chip-fit" type="button" title="출발지와 목적지 함께 보기">전체 경로</button>
+          <button id="set-destination" class="hidden" type="button" aria-pressed="true" title="지도를 눌러 목적지 지정">목적지 지정</button>
+        </div>
         <ul class="search-results hidden" id="search-results" aria-label="장소 검색 결과"></ul>
         <div class="map-gate" id="map-gate">
           <h2>지도를 켜고 목적지를 골라보세요</h2>
           <button id="enable-map" class="primary">온라인 지도 켜기</button>
           <small id="map-provider-consent">지도를 켜면 화면에 보이는 지역과 IP가 지도 서버에 전달돼요.</small>
         </div>
-        <button id="locate-me" class="locate-control" type="button" aria-label="현재 위치로 지도 이동" title="GPS로 현재 위치를 확인하고 지도를 이동합니다">내 위치</button>
         <p class="map-strip sr-only"><span class="map-tip" id="map-tip">지도를 눌러 목적지를 정하세요</span><span class="map-caption" id="map-caption">초기 지도: 서울 시청 / 현재 위치가 아니에요</span></p>
-        <p id="map-location-status" class="map-location-status hidden" role="status" aria-live="polite"></p>
       </div>
       
     </section>
 
     <button class="scrim" id="sheet-scrim" aria-label="패널 닫고 지도 보기"></button>
-    <div class="sheet">
+    <div class="sheet" id="sheet">
+      <div class="sheet-float">
+        <p id="map-location-status" class="map-location-status hidden" role="status" aria-live="polite"></p>
+        <div class="map-buttons"><button id="locate-me" class="locate-control" type="button" aria-label="현재 위치로 지도 이동" title="GPS로 현재 위치를 확인하고 지도를 이동합니다">내 위치</button></div>
+      </div>
+      <button class="sheet-grip" id="sheet-grip" type="button" aria-label="패널 펼치기 또는 접기"><i></i></button>
+      <div class="sheet-scroll" id="sheet-scroll">
+      <div class="sheet-board" id="sheet-board">
+        <div class="hero hero-main place">
+          <div class="place-head">
+            <div class="place-title">
+              <p class="sr-only">목적지</p>
+              <strong id="destination-name">지도에서 목적지를 선택해 주세요</strong>
+              <span class="place-sub"><span class="live-tag" id="tracking-tag"><i></i>준비 중</span><span id="destination-detail">장소 검색이나 좌표 입력도 가능해요</span></span>
+            </div>
+            <button id="clear-destination" class="place-clear hidden" type="button" aria-label="목적지 지우기" title="목적지 지우기">목적지 지우기</button>
+          </div>
+          <div class="place-eta">
+            <span id="eta-label" class="sr-only">예상 도착까지</span>
+            <span class="eta-time"><span id="eta-minutes">--</span><span class="unit" id="eta-unit">분</span></span>
+            <span class="eta-distance"><span class="sr-only">남은 거리</span><strong id="remaining-distance" class="empty">--</strong></span>
+            <span id="eta-arrival">목적지를 정하면 여기에 알려드릴게요</span>
+          </div>
+        </div>
+        <div class="hero hero-bus place">
+          <div class="place-head">
+            <div class="place-title">
+              <strong>대구대(정문1)</strong>
+              <span class="place-sub"><span>894번 버스 정류장까지 걸어서</span></span>
+            </div>
+          </div>
+          <div class="place-eta">
+            <span class="eta-time"><strong id="pilot-walk-time" class="empty">—</strong></span>
+            <span id="pilot-walk-detail">실제 도보 경로가 필요해요</span>
+          </div>
+        </div>
+        <div class="hero hero-meet place">
+          <div class="place-head">
+            <div class="place-title">
+              <h2>약속</h2>
+              <span class="place-sub"><span>약속 시간에 맞춰 도착할 수 있는지 알려드려요</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Messages come after the summary card, so the collapsed sheet always starts with the card. -->
       <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
       <div id="gps-recovery" class="gps-recovery hidden" role="status"><p id="gps-problem"></p><button id="gps-retry" class="secondary">GPS 다시 시도</button><button id="gps-use-saved" class="secondary">마지막 위치와 저장 속도 사용</button></div>
-      <div class="sheet-board" id="sheet-board">
-        <div class="hero hero-main">
-      <div class="hero-eta">
-        <div class="hero-label"><span id="eta-label">예상 도착까지</span><span class="live-tag" id="tracking-tag"><i></i>준비 중</span></div>
-        <div class="hero-number"><span id="eta-minutes">--</span><span class="unit" id="eta-unit">분</span></div>
-      </div>
-      <div class="hero-dest">
-        <p class="sr-only">목적지</p><strong id="destination-name">지도에서 목적지를 선택해 주세요</strong><span id="destination-detail" class="sr-only">장소 검색이나 좌표 입력도 가능해요</span>
-        <span id="eta-arrival">목적지를 정하면 여기에 알려드릴게요</span>
-        <button id="clear-destination" class="link-button hidden" aria-label="목적지 지우기">목적지 지우기</button>
-      </div>
-    </div>
-        <div class="hero hero-bus">
-      <div class="hero-eta"><span class="hero-label">대구대(정문1)까지 걸어서</span><div class="hero-number"><strong id="pilot-walk-time">—</strong></div></div>
-      <div class="hero-dest"><span id="pilot-walk-detail">실제 도보 경로가 필요해요</span></div>
-    </div>
-        <div class="hero hero-meet"><h2>약속</h2></div>
-      </div>
-      <div class="journey-panel">
+      <div class="journey-panel" id="journey-panel">
       
       
 
@@ -130,7 +163,6 @@
         <small>경로 기준 방향이며 휴대폰이 향한 방향이 아니에요. GPS 오차/겹치는 길에서는 잘못 안내될 수 있어요. 횡단보도와 현장 표지를 우선 확인하세요. 음성/백그라운드 안내와 자동 재탐색은 지원하지 않아요. iPhone은 화면을 켜 두세요.</small>
       </section>
         <div class="cells">
-          <div><span>남은 거리</span><strong id="remaining-distance">--</strong></div>
           <div><span>보행 속도</span><strong id="walking-speed">4.3 <small>km/h</small></strong></div>
           <div><span>계산 기준</span><strong id="speed-source">설정 속도</strong></div>
         </div>
@@ -139,10 +171,8 @@
           <button class="secondary" id="route-button" disabled>경로와 도착 시간 계산하기</button>
           <button class="secondary more-button" id="more-main">자세히</button>
         </div>
-        <div class="more">
+        <div class="more" id="detail-main">
           <div class="more-head"><strong>자세히</strong><button class="board-button" id="more-close-main">닫기</button></div>
-          <h3>지도 도구</h3>
-          <div class="map-tools" role="group" aria-label="지도에서 지정할 지점"><button id="set-start" aria-pressed="false" title="지도를 눌러 출발지 지정">출발지 지정</button><button id="set-destination" aria-pressed="true" title="지도를 눌러 목적지 지정">목적지 지정</button><button id="map-stops" title="주변 정류장 찾기 / 실시간 버스 미연결">정류장</button><button id="fit-map" title="출발지와 목적지 함께 보기" aria-label="전체 경로 보기">전체 보기</button></div>
           <p id="journey-pace-note" class="microcopy" role="status">기본 속도 4.3 km/h / 아직 측정하지 않았어요</p>
           <p class="microcopy" id="estimate-note">실제 도보 경로를 찾기 전에는 도착 시간을 표시하지 않아요.</p>
           <p class="microcopy">길 안내는 경로 기준 방향이며 휴대폰이 향한 방향이 아니에요. GPS 오차나 겹치는 길에서는 잘못 안내될 수 있으니 횡단보도와 현장 표지를 우선 확인하세요. 음성/백그라운드 안내와 자동 재탐색은 지원하지 않아요.</p>
@@ -182,7 +212,7 @@
           <button class="secondary" id="pilot-walk">이 정류장까지 도보 경로 찾기</button>
           <button class="secondary more-button" id="more-bus">자세히</button>
         </div>
-        <div class="more">
+        <div class="more" id="detail-bus">
           <div class="more-head"><strong>버스 자세히</strong><button class="board-button" id="more-close-bus">닫기</button></div>
           <p class="note-box"><strong class="pilot-direction">부기리 방면 확인 필요</strong> 894번 양방향이 이 정류장을 지나지만 도착정보에는 방면이 없어요. 아래 시간만으로 탑승 가능 여부를 판단하지 않아요.</p>
           <button class="secondary wide" id="pilot-show">지도에서 정류장 보기</button>
@@ -218,7 +248,7 @@
         <div class="actions">
           <button class="secondary more-button" id="more-meet">여유 설정 · 친구와 위치 공유</button>
         </div>
-        <div class="more">
+        <div class="more" id="detail-meet">
           <div class="more-head"><strong>약속 자세히</strong><button class="board-button" id="more-close-meet">닫기</button></div>
           <h3>도착 여유와 속도 <span class="tag tag-outline">안전이 먼저</span></h3>
           <div class="split-fields"><div><label for="arrival-buffer">도착 여유</label><select id="arrival-buffer"><option value="60">1분</option><option value="120" selected>2분</option><option value="300">5분</option><option value="600">10분</option></select></div><div><label for="comfort-speed">내 편한 속도 상한</label><select id="comfort-speed"><option value="2.5">2.5 km/h</option><option value="3.5">3.5 km/h</option><option value="4.3" selected>4.3 km/h</option><option value="5">5.0 km/h</option><option value="6">6.0 km/h</option></select></div></div>
@@ -248,6 +278,7 @@
         </div>
       </section>
       </div>
+      </div>
     </div>
   </main>
 
@@ -260,7 +291,7 @@
   </nav>
 </div>
 
-  <dialog id="stop-dialog" aria-labelledby="stop-name"><div class="dialog-content"><span class="tag tag-outline">실시간 미연결</span><h2 id="stop-name">정류장 정보</h2><p id="stop-detail"></p><p>지나가는 버스 노선/도착 예정 시간/운행 중인 버스 위치는 아직 제공하지 않아요.</p><p class="microcopy">지도에서 보이는 정류장은 OpenStreetMap에 등록된 실제 데이터예요. 누락되거나 오래된 정보가 있을 수 있으며, 반대편 정류장과 탑승 방향을 확인해 주세요.</p><div class="dialog-actions"><button id="stop-walk" class="primary">이 정류장까지 걸어가기</button><button id="stop-close" class="secondary">닫기</button></div></div></dialog>
+  <dialog id="stop-dialog" aria-labelledby="stop-name"><div class="dialog-content"><span class="tag tag-outline">실시간 미연결</span><h2 id="stop-name">정류장 정보</h2><p id="stop-detail"></p><p>지나가는 버스 노선/도착 예정 시간/운행 중인 버스 위치는 아직 제공하지 않아요.</p><p class="microcopy">지도에서 보이는 정류장은 OpenStreetMap에 등록된 실제 데이터예요. 누락되거나 오래된 정보가 있을 수 있으며, 반대편 정류장과 탑승 방향을 확인해 주세요.</p><div class="dialog-actions"><button id="stop-close" class="secondary">닫기</button><button id="stop-walk" class="primary">이 정류장까지 걸어가기</button></div></div></dialog>
   <dialog id="consent-dialog" aria-labelledby="consent-title"><div class="dialog-content"><h2 id="consent-title">외부 서비스 연결</h2><p id="consent-copy"></p><p class="microcopy" id="consent-footnote">이 요청을 진행할 때만 연결해요. GPS 이동 기록은 저장하지 않아요.</p><div class="dialog-actions"><button id="consent-cancel" class="secondary">취소</button><button id="consent-allow" class="primary">동의하고 연결</button></div></div></dialog>
   <dialog id="account-dialog" aria-labelledby="account-title"><div class="dialog-content account-content">
     <h2 id="account-title">몇분 걸음 계정</h2>

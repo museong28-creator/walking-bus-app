@@ -66,7 +66,7 @@ function harness(options = {}) {
   };
   const window = Object.assign(new FakeTarget(), {isSecureContext: options.secure ?? true, localStorage});
   if(options.storageAccessError) Object.defineProperty(window,'localStorage',{get(){throw new Error('SecurityError');}});
-  const watches = [], cleared = [], intervals = [], busTargets = [], locations = [], centers = [], timers = new Map();
+  const watches = [], cleared = [], intervals = [], busTargets = [], locations = [], centers = [], pans = [], timers = new Map();
   const navigator = {
     geolocation: {
       watchPosition(success, failure, settings) { watches.push({success, failure, settings}); return watches.length; },
@@ -79,8 +79,10 @@ function harness(options = {}) {
   const layer = () => ({
     addTo() { return this; }, remove() {}, clearLayers() {}, on() { return this; }, bindPopup() { return this; },
   });
-  const mapEvents = new Map();
-  const map = {...layer(), on(type, callback) { mapEvents.set(type,callback); return this; }, setView(point) { centers.push(point); return this; }, fitBounds() { return this; }};
+  const mapEvents = new Map(); let sheetHooks = {};
+  const map = {...layer(), on(type, callback) { mapEvents.set(type,callback); return this; }, setView(point) { centers.push(point); return this; }, fitBounds() { return this; },
+    // options.pin: where the destination is inside the map element. A pan moves it, like a real map.
+    latLngToContainerPoint() { return options.pin ? {x:options.pin.x - pans.reduce((sum,pan) => sum + pan[0],0),y:options.pin.y - pans.reduce((sum,pan) => sum + pan[1],0)} : null; }, panBy(offset) { pans.push(offset); return this; }};
   const L = {map: () => map, control: {zoom: () => layer()}, tileLayer: layer, layerGroup: layer,
     polyline: layer, marker: layer, divIcon: value => value, latLngBounds: value => value};
   class ClockDate extends Date { static now() { return now; } }
@@ -91,14 +93,16 @@ function harness(options = {}) {
     getWalkingRoute: async () => {throw new Error('Unexpected network request');},
     getWalkingRoutes: options.getWalkingRoutes || (async () => {throw new Error('Unexpected network request');}),
     getRouteLamps: options.getRouteLamps || (async () => {throw new Error('Unexpected network request');}),
-    searchPlaces: async () => {throw new Error('Unexpected network request');},
+    searchPlaces: options.searchPlaces || (async () => {throw new Error('Unexpected network request');}),
     getNearbyStops: options.getNearbyStops || (async () => {throw new Error('Unexpected network request');}),
     initAccountUI: () => ({}), initLoginGate: () => {}, initBusPilot: () => ({render(){}}),
+    createSheet: hooks => { let level = 0; sheetHooks = hooks; return {get level() { return level; },get height() { return (options.sheetHeights || [0,0,0])[level]; },peek:0,get dragging() { return Boolean(options.dragging?.()); },setLevel(next) { level = next; hooks.onLayout?.(); },layout() { hooks.onLayout?.(); },reveal() {}}; },
     initMeetupUI: () => ({refresh() {},pauseSharing() {},destinationChanged() {},useBusTime(timestamp) {busTargets.push(timestamp);}}),
   });
   vm.runInContext(appSource, context, {filename: 'src/app.js'});
   return {
-    app: context.appTest, element, document, window, navigator, watches, cleared, busTargets, storage, locations, centers,
+    app: context.appTest, element, document, window, navigator, watches, cleared, busTargets, storage, locations, centers, pans,
+    get pin() { return map.latLngToContainerPoint(); }, dragSheet() { sheetHooks.onDragStart?.(); },
     timeout() { for (const callback of [...timers.values()]) callback(); timers.clear(); },
     mapClick(lat,lng) { mapEvents.get('click')({latlng:{lat,lng}}); },
     get now() { return now; }, advance: milliseconds => { now += milliseconds; },
@@ -749,4 +753,216 @@ test('a configured sharing server is filled in and its address field is hidden f
   assert.equal(configured.element('sharing-server-settings').classList.contains('hidden'),true);
   const empty=harness();
   assert.equal(empty.element('sharing-server').value,'');assert.equal(empty.element('sharing-server-settings').classList.contains('hidden'),false);
+});
+
+test('search results list the place name and its address on separate lines',async()=>{
+  const h=harness({searchPlaces:async()=>[{name:'대구대학교',address:'경북 경산시 진량읍',point:[35.9,128.85],source:'테스트'},{name:'주소 없는 곳',point:[35.8,128.8]}]});
+  h.element('search-input').value='대구대';
+  const pending=h.element('search-form').emit('submit');await flushAsync();
+  await h.element('consent-allow').emit('click');await pending;
+  const rows=h.element('search-results').children;
+  assert.equal(h.element('search-results').classList.contains('hidden'),false);
+  assert.equal(rows.length,2);
+  assert.deepEqual(rows[0].children[0].children.map(child=>[child.tagName,child.textContent]),[['strong','대구대학교'],['small','경북 경산시 진량읍']]);
+  assert.deepEqual(rows[1].children[0].children.map(child=>[child.tagName,child.textContent]),[['strong','주소 없는 곳']]);
+  await rows[0].children[0].emit('click');
+  assert.equal(h.app.state.destination.name,'대구대학교');
+  assert.equal(h.element('search-results').classList.contains('hidden'),true);
+});
+
+test('the clear button shows only with text, then empties the box, closes the results and refocuses',async()=>{
+  const h=harness({searchPlaces:async()=>[{name:'대구대학교',point:[35.9,128.85]}]});
+  const input=h.element('search-input'),clear=h.element('search-clear');
+  let focused=0;input.focus=()=>{focused++;};
+  assert.equal(clear.classList.contains('hidden'),true);
+  input.value='대구대';await input.emit('input');
+  assert.equal(clear.classList.contains('hidden'),false);
+  const pending=h.element('search-form').emit('submit');await flushAsync();
+  await h.element('consent-allow').emit('click');await pending;
+  assert.equal(h.element('search-results').classList.contains('hidden'),false);
+  await clear.emit('click');
+  assert.equal(input.value,'');assert.equal(focused,1);
+  assert.equal(clear.classList.contains('hidden'),true);
+  assert.equal(h.element('search-results').classList.contains('hidden'),true);
+  input.value='';await input.emit('input');
+  assert.equal(clear.classList.contains('hidden'),true);
+});
+
+test('clearing the box while a search is on its way never opens that search afterwards',async()=>{
+  let finish,signal;
+  const h=harness({searchPlaces:(query,abort)=>{signal=abort;return new Promise(resolve=>{finish=resolve;});}});
+  h.element('search-input').value='대구대';await h.element('search-input').emit('input');
+  const pending=h.element('search-form').emit('submit');await flushAsync();
+  await h.element('consent-allow').emit('click');await flushAsync();
+  assert.equal(h.element('search-button').disabled,true);
+  await h.element('search-clear').emit('click');
+  assert.equal(signal.aborted,true);
+  assert.equal(h.element('search-button').disabled,false);
+  assert.equal(h.element('notice').textContent,'');
+  finish([{name:'대구대학교',point:[35.9,128.85]}]);await pending;
+  assert.equal(h.element('search-results').classList.contains('hidden'),true);
+  assert.equal(h.element('search-results').children.length,0);
+});
+
+test('the summary line hides the distance placeholder until a route gives a distance',async()=>{
+  const h=harness({getWalkingRoutes:async()=>[{points:[[0,0],[0,0.002]],distance:222,snapDistance:0}]});
+  await h.element('onboarding-skip').emit('click');
+  assert.equal(h.element('remaining-distance').classList.contains('empty'),true);
+  assert.equal(h.document.body.classList.contains('has-destination'),false);
+  h.app.state.position=[0,0];h.app.state.routeConsent=true;h.app.setDestination([0,0.002],'Destination');
+  await flushAsync();await flushAsync();h.app.render();
+  assert.equal(h.document.body.classList.contains('has-destination'),true);
+  assert.equal(h.element('remaining-distance').classList.contains('empty'),false);
+  assert.match(h.element('remaining-distance').textContent,/m$/);
+});
+
+test('a result that is one long comma-separated label is split for display only',async()=>{
+  const label='서울역, 지하2, 세종대로, 봉래동2가, 중구, 서울특별시';
+  const h=harness({searchPlaces:async()=>[{name:label,point:[37.555,126.972]},{name:'대구대학교, 진량읍',address:'경북 경산시',point:[35.9,128.85]}]});
+  await h.element('onboarding-skip').emit('click');
+  h.element('search-input').value='서울역';
+  const pending=h.element('search-form').emit('submit');await flushAsync();
+  await h.element('consent-allow').emit('click');await pending;
+  const rows=h.element('search-results').children;
+  assert.deepEqual(rows[0].children[0].children.map(child=>[child.tagName,child.textContent]),[['strong','서울역'],['small','지하2, 세종대로, 봉래동2가, 중구, 서울특별시']]);
+  // A separate address is used as it is; the name is not split then.
+  assert.deepEqual(rows[1].children[0].children.map(child=>[child.tagName,child.textContent]),[['strong','대구대학교, 진량읍'],['small','경북 경산시']]);
+  await rows[0].children[0].emit('click');
+  assert.equal(h.app.state.destination.name,label);
+  assert.equal(h.element('destination-name').textContent,label);
+});
+
+test('choosing a destination raises a collapsed sheet to half, and leaves an open one where it is',async()=>{
+  const h=harness();const body=h.document.body;
+  await h.element('onboarding-skip').emit('click');
+  assert.equal(body.classList.contains('sheet-open'),false);
+  h.mapClick(37.57,126.98);
+  assert.equal(body.classList.contains('sheet-open'),true);assert.equal(body.classList.contains('sheet-full'),false);
+  // Already at half: stays at half.
+  h.app.setDestination([37.571,126.98],'Second');
+  assert.equal(body.classList.contains('sheet-open'),true);assert.equal(body.classList.contains('sheet-full'),false);
+  // Collapsed again by the user, then a stop is chosen: half again.
+  await h.element('sheet-scrim').emit('click');
+  assert.equal(body.classList.contains('sheet-open'),false);
+  h.app.setDestination([37.572,126.98],'Stop','OSM 버스 정류장');
+  assert.equal(body.classList.contains('sheet-open'),true);
+});
+
+test('a destination set during the pace measurement does not open the hidden sheet',()=>{
+  const h=harness();
+  h.app.setDestination([37.57,126.98],'Destination');
+  assert.equal(h.document.body.classList.contains('sheet-open'),false);
+});
+
+test('without a route the summary points to the route button without saying where it is',async()=>{
+  const h=harness();await h.element('onboarding-skip').emit('click');
+  h.app.state.position=[37.56,126.97];h.app.setDestination([37.57,126.98],'Destination');
+  await h.element('consent-cancel').emit('click');await flushAsync();h.app.render();
+  assert.equal(h.element('eta-arrival').textContent,'경로 계산 버튼을 눌러 주세요');
+});
+
+// 375x812 phone: the sheet's box starts at y=108 (under the chips) and is 648px tall.
+async function mapScreen(options) {
+  const h=harness({sheetHeights:[149,446,648],...options});
+  await h.element('onboarding-skip').emit('click');await h.element('enable-map').emit('click');
+  Object.assign(h.element('sheet'),{offsetTop:108,offsetHeight:648});h.element('map').offsetWidth=375;
+  return h;
+}
+test('a new pin under the raised sheet is panned into view without changing the zoom',async()=>{
+  // At half the sheet's top is at 108 + 648 - 446 = 310. A tap at y=350 ends up under it.
+  const h=await mapScreen({pin:{x:180,y:350}});
+  const centred=h.centers.length;
+  h.mapClick(37.57,126.98);
+  assert.equal(h.document.body.classList.contains('sheet-open'),true);
+  assert.deepEqual(h.pans.map(pan=>[...pan]),[[0,80]]);assert.equal(h.centers.length,centred);
+});
+test('a pin that is already visible, or a map that is off, is left alone',async()=>{
+  const visible=await mapScreen({pin:{x:180,y:200}});
+  visible.mapClick(37.57,126.98);assert.deepEqual(visible.pans,[]);
+  const off=harness({sheetHeights:[149,446,648],pin:{x:180,y:350}});
+  await off.element('onboarding-skip').emit('click');Object.assign(off.element('sheet'),{offsetTop:108,offsetHeight:648});off.element('map').offsetWidth=375;
+  off.mapClick(37.57,126.98);assert.deepEqual(off.pans,[]);
+});
+test('a pin under the search box and chips, or at the side edge, is panned in too',async()=>{
+  const h=await mapScreen({pin:{x:370,y:90}});
+  h.app.setDestination([37.57,126.98],'Destination');
+  assert.deepEqual(h.pans.map(pan=>[...pan]),[[35,-58]]);
+});
+test('a message that appears raises a collapsed sheet once; one that only updates does not',async()=>{
+  const h=harness();const open=()=>h.document.body.classList.contains('sheet-open');
+  await h.element('onboarding-skip').emit('click');
+  await h.element('set-start').emit('click');
+  assert.match(h.element('notice').textContent,/온라인 지도를 켠 뒤/);assert.equal(open(),false,'set-start itself collapses the sheet');
+  // Still showing: the same text again, or new text, does not pull the sheet back up.
+  await h.element('disable-map').emit('click');
+  assert.match(h.element('notice').textContent,/온라인 지도를 껐어요/);assert.equal(open(),false);
+  await h.element('notice').emit('click');assert.equal(h.element('notice').textContent,'');
+  await h.element('disable-map').emit('click');assert.equal(open(),true);
+});
+test('the GPS recovery box raises a collapsed sheet when it appears, not on every render',async()=>{
+  const h=harness();const open=()=>h.document.body.classList.contains('sheet-open');
+  await h.element('onboarding-skip').emit('click');
+  h.element('gps-recovery').classList.add('hidden');h.element('notice').textContent='이미 보이는 안내';
+  h.app.state.gpsIssue='위치 권한이 꺼져 있어요.';h.app.render();
+  assert.equal(h.element('gps-recovery').classList.contains('hidden'),false);assert.equal(open(),true);
+  await h.element('sheet-scrim').emit('click');h.app.render();h.tick();
+  assert.equal(open(),false);
+});
+test('messages do not raise the sheet during the pace measurement, in demo mode or under a finger',async()=>{
+  let dragging=false;
+  const h=harness({dragging:()=>dragging});const open=()=>h.document.body.classList.contains('sheet-open');
+  await h.element('disable-map').emit('click');assert.equal(open(),false,'pace measurement');
+  await h.element('onboarding-skip').emit('click');await h.element('notice').emit('click');
+  dragging=true;await h.element('disable-map').emit('click');assert.equal(open(),false,'dragging');
+  dragging=false;await h.element('notice').emit('click');
+  h.app.startDemo();await h.element('sheet-scrim').emit('click');
+  h.mapClick(37.57,126.98);
+  assert.match(h.element('notice').textContent,/가상 체험 중/);assert.equal(open(),false,'demo');
+});
+
+// Review round 3, 375x812: tap at y=560; the half height is 297 at first (sheet top 459), then the
+// location messages arrive and it grows to 499 (sheet top 257, chips end at 108).
+test('the pin stays above a sheet that grows after the destination was set',async()=>{
+  const heights=[149,297,648];
+  const h=await mapScreen({sheetHeights:heights,pin:{x:180,y:560}});
+  h.mapClick(37.57,126.98);
+  assert.equal(h.pin.y,419);
+  heights[1]=499;h.app.render();
+  assert.equal(h.pans.length,2);assert.equal(h.pin.y,217);
+  assert.ok(h.pin.y>=108+40&&h.pin.y<=257-40,'the pin is outside the visible band');
+  // Nothing moved since: later layouts leave the map alone.
+  h.app.render();h.tick();assert.equal(h.pans.length,2);
+});
+test('once the user moves the map or drags the sheet, a growing sheet no longer moves the map',async()=>{
+  for (const takeOver of [h=>h.element('map').emit('pointerdown'),h=>h.element('map').emit('wheel'),h=>h.element('map').emit('touchstart'),async h=>h.dragSheet()]) {
+    const heights=[149,297,648];
+    const h=await mapScreen({sheetHeights:heights,pin:{x:180,y:560}});
+    h.mapClick(37.57,126.98);assert.equal(h.pans.length,1);
+    await takeOver(h);
+    heights[1]=499;h.app.render();h.tick();
+    assert.equal(h.pans.length,1);assert.equal(h.pin.y,419);
+  }
+});
+test('a fitted route, a cleared destination and a new destination each end the old follow-up',async()=>{
+  const heights=[149,297,648];
+  const routed=await mapScreen({sheetHeights:heights,pin:{x:180,y:560},getWalkingRoutes:async(start,end)=>[{points:[start,end],distance:300,snapDistance:0}]});
+  routed.app.state.position=[37.56,126.97];routed.app.state.routeConsent=true;
+  routed.mapClick(37.561,126.97);await flushAsync();await flushAsync();
+  assert.notEqual(routed.app.state.route,null);const fitted=routed.pans.length;
+  heights[1]=499;routed.app.render();assert.equal(routed.pans.length,fitted);
+
+  const cleared=await mapScreen({sheetHeights:[149,297,648],pin:{x:180,y:560}});
+  cleared.mapClick(37.57,126.98);await cleared.element('clear-destination').emit('click');
+  const before=cleared.pans.length;cleared.app.render();cleared.tick();assert.equal(cleared.pans.length,before);
+});
+test('a band too low for both margins holds the pin in its middle; a covered map is left alone',async()=>{
+  // Sheet box 108..508 (short screen). Half height 340: the band is 108..168, 60px.
+  const low=await mapScreen({sheetHeights:[149,340,400],pin:{x:180,y:300}});
+  Object.assign(low.element('sheet'),{offsetTop:108,offsetHeight:400});
+  low.mapClick(37.57,126.98);
+  assert.equal(low.pin.y,138);
+  const covered=await mapScreen({sheetHeights:[149,390,400],pin:{x:180,y:300}});
+  Object.assign(covered.element('sheet'),{offsetTop:108,offsetHeight:400});
+  covered.mapClick(37.57,126.98);
+  assert.deepEqual(covered.pans,[]);
 });

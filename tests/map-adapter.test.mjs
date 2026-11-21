@@ -6,7 +6,7 @@ function fake() {
   const element=()=>({style:{},setAttribute(){},addEventListener(type,fn){(this.events ||= {})[type]=fn;},replaceChildren(){this.cleared=true;},remove(){this.removed=true;}});
   const document={createElement:element,getElementById(id){if(!elements.has(id))elements.set(id,element());return elements.get(id);},head:{append(script){scripts.push(script);}}};
   class LatLng{constructor(lat,lng){this.lat=lat;this.lng=lng;}getLat(){return this.lat;}getLng(){return this.lng;}}
-  class Map{constructor(element,{center,level}){this.center=center;this.level=level;this.events={};maps.push(this);}setCenter(p){this.center=p;}getCenter(){return this.center;}setLevel(l){this.level=l;}getLevel(){return this.level;}addControl(){}relayout(){}setBounds(b){this.center=b.points[0];}}
+  class Map{constructor(element,{center,level}){this.center=center;this.level=level;this.events={};maps.push(this);}setCenter(p){this.center=p;}getCenter(){return this.center;}setLevel(l){this.level=l;}getLevel(){return this.level;}addControl(){}relayout(){}setBounds(b){this.center=b.points[0];}getProjection(){return {containerPointFromCoords:p=>({x:Math.round((p.lng-this.center.lng)*1e4)+100,y:Math.round((this.center.lat-p.lat)*1e4)+200,ignored:true})};}panBy(dx,dy){this.pans=[...(this.pans||[]),[dx,dy]];}}
   class Overlay{constructor(options){this.map=options.map;this.content=options.content;overlays.push(this);}setMap(map){this.map=map;}}
   const k={load:cb=>cb(),Map,LatLng,LatLngBounds:class {points=[];extend(p){this.points.push(p);}},Polyline:Overlay,CustomOverlay:Overlay,ZoomControl:class{},ControlPosition:{RIGHT:1},event:{preventMap(){},addListener(map,event,fn){map.events[event]=fn;},removeListener(map,event){delete map.events[event];}}};
   return {document,scripts,maps,overlays,window:{kakao:{maps:k}}};
@@ -53,4 +53,17 @@ test('Kakao stop marker dispatches selection without throwing or selecting the u
   let calls=0,stopped=false;api.marker([37,127],{icon:{className:'stop',html:'<div>▣</div>'},alt:'Test stop'}).on('click',()=>calls++).addTo(group);
   const p=map.enable();f.scripts[0].onload();await p;
   f.overlays[0].content.events.click({stopPropagation(){stopped=true;}});assert.equal(calls,1);assert.equal(stopped,true);
+});
+
+test('Kakao offers the Leaflet-named pixel helpers: a point inside the map element and a pan that keeps the zoom',async()=>{
+  const f=fake(),api=createMapAPI({key:'public-key',...f}),map=api.map('map').setView([35,129],16);
+  // Nothing to measure or move before the map exists.
+  assert.equal(map.latLngToContainerPoint([35,129]),null);assert.equal(map.panBy([10,20]),map);
+  const p=map.enable();f.scripts[0].onload();await p;
+  assert.deepEqual(map.latLngToContainerPoint([35,129]),{x:100,y:200});
+  assert.deepEqual(map.latLngToContainerPoint([34.99,129.01]),{x:200,y:300});
+  const level=f.maps[0].level;
+  assert.equal(map.panBy([0,80]),map);
+  assert.deepEqual(f.maps[0].pans,[[0,80]]);assert.equal(f.maps[0].level,level);
+  map.disable();
 });

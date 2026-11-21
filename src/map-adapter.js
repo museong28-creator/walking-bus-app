@@ -72,6 +72,10 @@ export function createMapAPI({key = '', leaflet, document = globalThis.document,
     setView(point,zoom) {this.point=point;this.zoom=zoom;this.bounds=null;if(this.instance){this.instance.setLevel(level(zoom));this.instance.setCenter(latLng(this.k,point));}return this;}
     invalidateSize() { if(this.instance){this.instance.relayout();this.instance.setCenter(latLng(this.k,this.point));}return this; }
     on(type,callback) {this.events.set(type,callback);return this;}
+    // Leaflet-named pixel helpers: where a point is inside the map element, and a pan by pixels
+    // that keeps the zoom. Before the map exists there is nothing to measure or move.
+    latLngToContainerPoint(point) {if(!this.instance)return null;const p=this.instance.getProjection().containerPointFromCoords(latLng(this.k,point));return {x:p.x,y:p.y};}
+    panBy(offset) {if(this.instance){this.bounds=null;this.instance.panBy(offset[0],offset[1]);}return this;}
     fitBounds(points,options={}) {this.bounds={points,options};if(this.instance){const b=new this.k.LatLngBounds();points.forEach(p=>b.extend(latLng(this.k,p)));const tl=options.paddingTopLeft||[40,40],br=options.paddingBottomRight||[40,40];this.instance.setBounds(b,tl[1],br[0],br[1],tl[0]);if(options.maxZoom && this.instance.getLevel()<level(options.maxZoom))this.instance.setLevel(level(options.maxZoom));this.point=[this.instance.getCenter().getLat(),this.instance.getCenter().getLng()];}return this;}
     async enable() {
       this.enabled=true;const generation=++this.generation;const k=await load();
